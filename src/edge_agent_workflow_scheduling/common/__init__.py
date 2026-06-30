@@ -1,6 +1,6 @@
 """Shared schemas and utilities."""
 
-from edge_tool_offloading.common.schemas import (
+from edge_agent_workflow_scheduling.common.schemas import (
     LLMCall,
     LLMInstanceInfo,
     LLMInstanceState,

@@ -1,12 +1,12 @@
 [project]
-name = "edge-agent-tool-offloading"
+name = "edge-agent-workflow-scheduling"
 dynamic = ["version"]
-description = "RL-based tool offloading framework for multi-agent LLM systems on edge devices."
+description = "RL-based edge workflow scheduling framework for multi-agent LLM systems."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
 authors = [
-  { name = "Edge Agent Tool Offloading Contributors" }
+  { name = "Edge Agent Workflow Scheduling Contributors" }
 ]
 dependencies = []
 
@@ -27,7 +27,7 @@ source = "vcs"
 fallback_version = "0.0.0"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/edge_tool_offloading"]
+packages = ["src/edge_agent_workflow_scheduling"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

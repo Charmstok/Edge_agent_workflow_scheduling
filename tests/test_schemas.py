@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from edge_tool_offloading.common import (
+from edge_agent_workflow_scheduling.common import (
     LLMCall,
     LLMInstanceInfo,
     LLMInstanceState,

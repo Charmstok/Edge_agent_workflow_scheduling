@@ -1,4 +1,4 @@
-# Edge Agent Tool Offloading
+# Edge Agent Workflow Scheduling
 
 An experimental framework for edge workflow scheduling in multi-agent LLM systems.
 
@@ -23,7 +23,7 @@ Clone the repository and enter the project directory:
 
 ```bash
 git clone <repo-url>
-cd Edge-agent-tool-offloading
+cd edge-agent-workflow-scheduling
 ```
 
 Install development dependencies:
@@ -35,7 +35,7 @@ uv sync --dev
 Verify that the package can be imported:
 
 ```bash
-uv run python -c "import edge_tool_offloading; print(edge_tool_offloading.__name__)"
+uv run python -c "import edge_agent_workflow_scheduling; print(edge_agent_workflow_scheduling.__name__)"
 ```
 
 Run tests:
@@ -99,11 +99,11 @@ Configuration files live under `configs/`:
 ## Repository Layout
 
 ```text
-Edge-agent-tool-offloading/
+edge-agent-workflow-scheduling/
 ├── configs/
 ├── scripts/
 ├── src/
-│   └── edge_tool_offloading/
+│   └── edge_agent_workflow_scheduling/
 │       ├── agents/
 │       ├── common/
 │       ├── llm/

@@ -1,5 +1,5 @@
-import edge_tool_offloading
+import edge_agent_workflow_scheduling
 
 
 def test_package_import() -> None:
-    assert edge_tool_offloading.__name__ == "edge_tool_offloading"
+    assert edge_agent_workflow_scheduling.__name__ == "edge_agent_workflow_scheduling"

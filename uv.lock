@@ -12,7 +12,7 @@ wheels = [
 ]
 
 [[package]]
-name = "edge-agent-tool-offloading"
+name = "edge-agent-workflow-scheduling"
 source = { editable = "." }
 
 [package.dev-dependencies]
