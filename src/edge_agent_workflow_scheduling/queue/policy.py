@@ -27,9 +27,7 @@ class QueuePolicy(Protocol):
         """Select the next item index from non-empty queued items."""
 
 
-# FIFO 策略
-# 结构完全匹配 QueuePolicy，自动被视为 QueuePolicy 类型
-class FifoQueuePolicy():
+class FifoQueuePolicy:
     """Select items by insertion order."""
 
     name = "fifo"
@@ -39,8 +37,7 @@ class FifoQueuePolicy():
         return 0
 
 
-# 优先级策略
-class PriorityQueuePolicy():
+class PriorityQueuePolicy:
     """Select the highest-priority item, preserving FIFO order for ties."""
 
     name = "priority"
