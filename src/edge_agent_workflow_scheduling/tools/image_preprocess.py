@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import unquote, urlparse
@@ -224,9 +225,9 @@ class ImagePreprocessTool:
         input_path: Path,
         output_path: Path,
     ) -> tuple[ImageProfile, ImageProfile]:
-        from PIL import Image, ImageFilter
+        image_module, image_filter_module = _load_pillow_modules()
 
-        source_image = Image.open(input_path)
+        source_image = image_module.open(input_path)
         input_profile = ImageProfile(
             width=source_image.width,
             height=source_image.height,
@@ -242,11 +243,11 @@ class ImagePreprocessTool:
                     height = max(1, int(image.height * self.config.resize_scale))
                     image = image.resize((width, height))
                 elif operation == "blur":
-                    image = image.filter(ImageFilter.GaussianBlur(radius=1))
+                    image = image.filter(image_filter_module.GaussianBlur(radius=1))
                 elif operation == "threshold":
                     image = image.point(lambda pixel: 255 if pixel >= self.config.threshold else 0)
                 elif operation == "edge_detect":
-                    image = image.filter(ImageFilter.FIND_EDGES)
+                    image = image.filter(image_filter_module.FIND_EDGES)
                 else:
                     _raise_unknown_operation(operation)
 
@@ -296,6 +297,10 @@ def resolve_local_path(uri: str, local_root: Path) -> Path:
 
     path = Path(uri)
     return path if path.is_absolute() else local_root / path
+
+
+def _load_pillow_modules():
+    return import_module("PIL.Image"), import_module("PIL.ImageFilter")
 
 
 def read_netpbm(path: Path) -> ImageBuffer:
