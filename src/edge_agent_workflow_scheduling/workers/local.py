@@ -8,8 +8,9 @@ from time import perf_counter, sleep
 from typing import Any
 
 from edge_agent_workflow_scheduling.common import ToolCall, ToolResult, WorkerInfo, WorkerState
+from edge_agent_workflow_scheduling.tools.base import ToolExecution
 
-ToolExecutor = Callable[[ToolCall], str | None]
+ToolExecutor = Callable[[ToolCall], str | ToolExecution | None]
 
 
 @dataclass(slots=True)
@@ -60,13 +61,14 @@ class LocalWorker:
             if self.artificial_delay_sec > 0:
                 sleep(self.artificial_delay_sec)
 
-            output_uri = self._execute_supported_tool(tool_call)
+            tool_execution = self._execute_supported_tool(tool_call)
             return ToolResult(
                 tool_call_id=tool_call.tool_call_id,
                 worker_id=self.worker_id,
                 success=True,
-                output_uri=output_uri,
+                output_uri=tool_execution.output_uri,
                 execution_time_sec=perf_counter() - start_time,
+                metadata=dict(tool_execution.metadata),
             )
         except Exception as exc:
             return ToolResult(
@@ -108,12 +110,15 @@ class LocalWorker:
             is_online=is_online,
         )
 
-    def _execute_supported_tool(self, tool_call: ToolCall) -> str | None:
+    def _execute_supported_tool(self, tool_call: ToolCall) -> ToolExecution:
         executor = self.tool_executors.get(tool_call.tool_type)
         if executor is not None:
-            return executor(tool_call)
+            result = executor(tool_call)
+            if isinstance(result, ToolExecution):
+                return result
+            return ToolExecution(output_uri=result)
 
-        return self._default_output_uri(tool_call)
+        return ToolExecution(output_uri=self._default_output_uri(tool_call))
 
     def _default_output_uri(self, tool_call: ToolCall) -> str:
         prefix = self.output_uri_prefix.rstrip("/")

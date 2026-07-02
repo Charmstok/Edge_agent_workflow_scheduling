@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from edge_agent_workflow_scheduling.tools.base import Tool
+from edge_agent_workflow_scheduling.tools.base import Tool, ToolSpec
 
 
 @dataclass(slots=True)
@@ -32,6 +32,12 @@ class ToolRegistry:
 
     def supported_tools(self) -> list[str]:
         return sorted(self._tools)
+
+    def tools(self) -> list[ToolSpec]:
+        return [self._tools[tool_type].spec for tool_type in self.supported_tools()]
+
+    def specs(self) -> list[ToolSpec]:
+        return self.tools()
 
     def as_executor_mapping(self) -> dict[str, Tool]:
         return dict(self._tools)

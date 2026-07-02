@@ -212,6 +212,7 @@ class ToolResult(SerializableSchema):
     output_uri: str | None = None
     execution_time_sec: float = 0.0
     error_message: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     finished_at: str = field(default_factory=_utc_now_iso)
 
     @classmethod

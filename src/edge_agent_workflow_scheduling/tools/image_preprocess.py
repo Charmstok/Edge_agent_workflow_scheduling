@@ -4,12 +4,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 from urllib.parse import unquote, urlparse
 
 from edge_agent_workflow_scheduling.common import ToolCall
+from edge_agent_workflow_scheduling.tools.base import ToolExecution, ToolSpec
 
 ImageOperation = Literal["grayscale", "resize", "blur", "threshold", "edge_detect"]
+
+_ALL_IMAGE_OPERATIONS: tuple[ImageOperation, ...] = (
+    "grayscale",
+    "resize",
+    "blur",
+    "threshold",
+    "edge_detect",
+)
 
 _DEFAULT_OPERATIONS: tuple[ImageOperation, ...] = (
     "grayscale",
@@ -40,6 +49,23 @@ class ImageBuffer:
 
 
 @dataclass(frozen=True, slots=True)
+class ImageProfile:
+    """Image dimensions and mode used for tool workload metadata."""
+
+    width: int
+    height: int
+    mode: str
+
+    @property
+    def pixel_count(self) -> int:
+        return self.width * self.height
+
+    @classmethod
+    def from_buffer(cls, image: ImageBuffer) -> Self:
+        return cls(width=image.width, height=image.height, mode="L")
+
+
+@dataclass(frozen=True, slots=True)
 class ImagePreprocessConfig:
     """Configuration for the image preprocessing tool."""
 
@@ -57,6 +83,10 @@ class ImagePreprocessConfig:
             raise ValueError(msg)
         if not self.operations:
             msg = "operations must be non-empty"
+            raise ValueError(msg)
+        unsupported_operations = sorted(set(self.operations) - set(_ALL_IMAGE_OPERATIONS))
+        if unsupported_operations:
+            msg = f"unsupported operations: {unsupported_operations}"
             raise ValueError(msg)
         if self.resize_scale <= 0:
             msg = "resize_scale must be positive"
@@ -80,19 +110,81 @@ class ImagePreprocessTool:
     config: ImagePreprocessConfig
     tool_type: str = "image_preprocess"
 
-    def __call__(self, tool_call: ToolCall) -> str:
+    @property
+    def spec(self) -> ToolSpec:
+        return {
+            "type": "function",
+            "name": self.tool_type,
+            "description": (
+                "Reads a local image, applies configurable preprocessing operations, "
+                "and writes a processed image for downstream OCR or document parsing."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "input_uri": {
+                        "type": "string",
+                        "description": (
+                            "Local image URI using file://, local://, or a filesystem path."
+                        ),
+                    },
+                    "operations": {
+                        "type": "array",
+                        "description": "Ordered preprocessing operations to apply.",
+                        "items": {
+                            "type": "string",
+                            "enum": list(_ALL_IMAGE_OPERATIONS),
+                        },
+                    },
+                    "operation_repeat": {
+                        "type": "integer",
+                        "description": "Number of times to repeat the configured operations.",
+                        "enum": [1, 5, 10, 20],
+                    },
+                    "resize_scale": {
+                        "type": "number",
+                        "description": "Scale factor used by the resize operation.",
+                        "exclusiveMinimum": 0,
+                    },
+                    "threshold": {
+                        "type": "integer",
+                        "description": "Threshold value used by the threshold operation.",
+                        "minimum": 0,
+                        "maximum": 255,
+                    },
+                },
+                "required": ["input_uri"],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        }
+
+    def __call__(self, tool_call: ToolCall) -> ToolExecution:
         input_path = resolve_local_path(tool_call.input_uri, self.config.local_root)
         output_path = self._build_output_path(tool_call)
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        input_image_profile: ImageProfile
+        output_image_profile: ImageProfile
 
         try:
-            self._run_with_pillow(input_path, output_path)
+            input_image_profile, output_image_profile = self._run_with_pillow(
+                input_path,
+                output_path,
+            )
         except ModuleNotFoundError:
             image = read_netpbm(input_path)
+            input_image_profile = ImageProfile.from_buffer(image)
             processed_image = self._preprocess_fallback(image)
+            output_image_profile = ImageProfile.from_buffer(processed_image)
             write_pgm(output_path, processed_image)
 
-        return output_path.resolve().as_uri()
+        return ToolExecution(
+            output_uri=output_path.resolve().as_uri(),
+            metadata=self.build_workload_metadata(
+                input_profile=input_image_profile,
+                output_profile=output_image_profile,
+            ),
+        )
 
     def estimate_work_units(self, image_width: int, image_height: int) -> int:
         """Return a rough deterministic work estimate for scheduling experiments."""
@@ -100,10 +192,47 @@ class ImagePreprocessTool:
         operation_count = len(self.config.operations) * self.config.operation_repeat
         return image_width * image_height * operation_count
 
-    def _run_with_pillow(self, input_path: Path, output_path: Path) -> None:
+    def build_workload_metadata(
+        self,
+        *,
+        input_profile: ImageProfile,
+        output_profile: ImageProfile,
+    ) -> dict[str, object]:
+        operation_count = len(self.config.operations) * self.config.operation_repeat
+        return {
+            "tool_type": self.tool_type,
+            "description": self.spec["description"],
+            "operations": list(self.config.operations),
+            "operation_repeat": self.config.operation_repeat,
+            "operation_count": operation_count,
+            "input_width": input_profile.width,
+            "input_height": input_profile.height,
+            "input_pixels": input_profile.pixel_count,
+            "input_mode": input_profile.mode,
+            "output_width": output_profile.width,
+            "output_height": output_profile.height,
+            "output_pixels": output_profile.pixel_count,
+            "output_mode": output_profile.mode,
+            "estimated_work_units": self.estimate_work_units(
+                input_profile.width,
+                input_profile.height,
+            ),
+        }
+
+    def _run_with_pillow(
+        self,
+        input_path: Path,
+        output_path: Path,
+    ) -> tuple[ImageProfile, ImageProfile]:
         from PIL import Image, ImageFilter
 
-        image = Image.open(input_path).convert("L")
+        source_image = Image.open(input_path)
+        input_profile = ImageProfile(
+            width=source_image.width,
+            height=source_image.height,
+            mode=source_image.mode,
+        )
+        image = source_image.convert("L")
         for _ in range(self.config.operation_repeat):
             for operation in self.config.operations:
                 if operation == "grayscale":
@@ -122,6 +251,8 @@ class ImagePreprocessTool:
                     _raise_unknown_operation(operation)
 
         image.save(output_path)
+        output_profile = ImageProfile(width=image.width, height=image.height, mode=image.mode)
+        return input_profile, output_profile
 
     def _preprocess_fallback(self, image: ImageBuffer) -> ImageBuffer:
         processed_image = image
