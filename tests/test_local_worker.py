@@ -1,6 +1,7 @@
 import pytest
 
 from edge_agent_workflow_scheduling.common import ToolCall
+from edge_agent_workflow_scheduling.tools import ToolExecution
 from edge_agent_workflow_scheduling.workers import LocalWorker
 
 
@@ -50,6 +51,33 @@ def test_local_worker_runs_custom_tool_executor() -> None:
 
     assert result.success is True
     assert result.output_uri == "local://parsed/tc_pdf_001.json"
+
+
+def test_local_worker_preserves_structured_tool_execution_metadata() -> None:
+    worker = LocalWorker(
+        worker_id="worker_local_2",
+        supported_tools=["pdf_parse"],
+        tool_executors={
+            "pdf_parse": lambda _: ToolExecution(
+                output_uri="local://parsed/tc_pdf_001.json",
+                metadata={"estimated_work_units": 50},
+            ),
+        },
+    )
+    tool_call = ToolCall(
+        tool_call_id="tc_pdf_001",
+        agent_id="agent_pdf",
+        tool_type="pdf_parse",
+        input_uri="local://inputs/doc.pdf",
+        input_size_mb=20,
+        page_count=50,
+    )
+
+    result = worker.run_tool(tool_call)
+
+    assert result.success is True
+    assert result.output_uri == "local://parsed/tc_pdf_001.json"
+    assert result.metadata == {"estimated_work_units": 50}
 
 
 def test_local_worker_rejects_unsupported_tool_call() -> None:

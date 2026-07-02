@@ -6,6 +6,7 @@ from edge_agent_workflow_scheduling.common import ToolCall
 from edge_agent_workflow_scheduling.tools import (
     ImagePreprocessConfig,
     ImagePreprocessTool,
+    ToolExecution,
     ToolRegistry,
     read_netpbm,
 )
@@ -32,14 +33,75 @@ def test_image_preprocess_tool_reads_input_and_writes_output(tmp_path: Path) -> 
         image_count=1,
     )
 
-    output_uri = tool(tool_call)
-    output_path = Path(output_uri.removeprefix("file://"))
+    execution = tool(tool_call)
+    assert isinstance(execution, ToolExecution)
+
+    output_path = Path(execution.output_uri.removeprefix("file://"))
     output_image = read_netpbm(output_path)
 
     assert output_path.exists()
     assert output_path.name == "tc_image_001.pgm"
     assert output_image.width == 8
     assert output_image.height == 6
+    assert execution.metadata["description"] == tool.spec["description"]
+    assert execution.metadata["input_width"] == 8
+    assert execution.metadata["input_height"] == 6
+    assert execution.metadata["input_pixels"] == 48
+    assert execution.metadata["operation_count"] == 8
+    assert execution.metadata["estimated_work_units"] == 384
+
+
+def test_image_preprocess_tool_exposes_description_and_configured_operations(
+    tmp_path: Path,
+) -> None:
+    tool = ImagePreprocessTool(
+        ImagePreprocessConfig(
+            output_dir=tmp_path / "outputs",
+            operations=("resize", "threshold"),
+            operation_repeat=5,
+        )
+    )
+
+    spec = tool.spec
+    assert spec["type"] == "function"
+    assert spec["name"] == "image_preprocess"
+    assert "preprocessing operations" in spec["description"]
+    assert spec["strict"] is True
+    assert spec["parameters"] == {
+        "type": "object",
+        "properties": {
+            "input_uri": {
+                "type": "string",
+                "description": "Local image URI using file://, local://, or a filesystem path.",
+            },
+            "operations": {
+                "type": "array",
+                "description": "Ordered preprocessing operations to apply.",
+                "items": {
+                    "type": "string",
+                    "enum": ["grayscale", "resize", "blur", "threshold", "edge_detect"],
+                },
+            },
+            "operation_repeat": {
+                "type": "integer",
+                "description": "Number of times to repeat the configured operations.",
+                "enum": [1, 5, 10, 20],
+            },
+            "resize_scale": {
+                "type": "number",
+                "description": "Scale factor used by the resize operation.",
+                "exclusiveMinimum": 0,
+            },
+            "threshold": {
+                "type": "integer",
+                "description": "Threshold value used by the threshold operation.",
+                "minimum": 0,
+                "maximum": 255,
+            },
+        },
+        "required": ["input_uri"],
+        "additionalProperties": False,
+    }
 
 
 def test_image_preprocess_tool_supports_local_uri_resolution(tmp_path: Path) -> None:
@@ -64,9 +126,10 @@ def test_image_preprocess_tool_supports_local_uri_resolution(tmp_path: Path) -> 
         image_count=1,
     )
 
-    output_uri = tool(tool_call)
+    execution = tool(tool_call)
 
-    assert Path(output_uri.removeprefix("file://")).exists()
+    assert execution.output_uri is not None
+    assert Path(execution.output_uri.removeprefix("file://")).exists()
 
 
 def test_image_preprocess_tool_integrates_with_local_worker(tmp_path: Path) -> None:
@@ -103,6 +166,11 @@ def test_image_preprocess_tool_integrates_with_local_worker(tmp_path: Path) -> N
     assert result.output_uri is not None
     assert Path(result.output_uri.removeprefix("file://")).exists()
     assert result.execution_time_sec > 0
+    assert result.metadata["description"] == registry.get("image_preprocess").spec["description"]
+    assert result.metadata["operation_repeat"] == 3
+    assert result.metadata["operation_count"] == 9
+    assert result.metadata["input_pixels"] == 256
+    assert result.metadata["estimated_work_units"] == 2304
 
 
 def test_image_preprocess_work_units_scale_with_resolution_and_repeat(tmp_path: Path) -> None:
@@ -163,6 +231,8 @@ def test_tool_registry_registers_and_rejects_duplicate_tools(tmp_path: Path) -> 
 
     assert registry.supported_tools() == ["image_preprocess"]
     assert registry.get("image_preprocess") is tool
+    assert registry.tools() == [tool.spec]
+    assert registry.specs() == [tool.spec]
     assert registry.as_executor_mapping() == {"image_preprocess": tool}
     with pytest.raises(ValueError, match="already registered"):
         registry.register(tool)

@@ -152,12 +152,14 @@ def test_tool_result_round_trip_json() -> None:
         success=True,
         output_uri="local://data/output.png",
         execution_time_sec=2.5,
+        metadata={"estimated_work_units": 1024},
     )
 
     restored = ToolResult.from_json(result.to_json())
 
     assert restored == result
     assert restored.error_message is None
+    assert restored.metadata == {"estimated_work_units": 1024}
 
 
 def test_trace_record_is_json_serializable() -> None:
