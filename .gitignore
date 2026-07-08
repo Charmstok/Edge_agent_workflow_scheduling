@@ -51,6 +51,9 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# Local generated demo data and traces
+data/
+
 # Translations
 *.mo
 *.pot
