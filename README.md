@@ -6,12 +6,16 @@ This project studies how to schedule both LLM inference steps and long-running t
 
 ## Goal
 
-The first implementation target is a minimal end-to-end execution loop:
+The first milestone implements a minimal end-to-end execution loop:
 
 ```text
 Simulated Agent -> LLMCall / ToolCall -> Scheduler
   -> Local LLM Instance / Local Worker -> Result -> Trace Log
 ```
+
+The current implementation includes simulated agents, a unified in-memory workflow
+queue, baseline scheduling policies, mock LLM runtimes, local tool workers, an
+image preprocessing tool, and JSONL trace logging.
 
 ## Environment
 
@@ -46,15 +50,21 @@ uv run pytest
 
 ## Usage
 
-The project is currently at the skeleton stage. The first runnable demo script will be added under `scripts/` once the core schemas, local worker, scheduler, and trace logger are implemented.
-
-Expected command shape:
+Run the first local end-to-end demo:
 
 ```bash
 uv run python scripts/run_first_demo.py --policy round_robin
 ```
 
-The demo will generate simulated workflow steps, schedule them to local execution targets, execute a long-running step, and write JSONL traces under `data/traces/`.
+The demo creates two simulated agents, two mock LLM runtimes, and two local
+workers. It generates LLM inference steps and image preprocessing tool calls,
+schedules them through the baseline scheduler, writes JSONL traces under
+`data/traces/`, and prints latency, success-rate, worker-count, and
+LLM-runtime-count summaries.
+
+Generated demo data lives under `data/` and is ignored by git. See
+[`scripts/first_demo_data.md`](scripts/first_demo_data.md) for the generated data
+layout and trace fields.
 
 ## Development
 
@@ -68,6 +78,12 @@ Run lint checks:
 
 ```bash
 uv run ruff check .
+```
+
+Run the first demo smoke test:
+
+```bash
+uv run python scripts/run_first_demo.py --policy round_robin
 ```
 
 Format code:
