@@ -93,9 +93,12 @@ class LocalWorker:
         self,
         *,
         queue_len: int = 0,
+        running_tasks: int = 0,
         cpu_util: float = 0.0,
         memory_util: float = 0.0,
         network_latency_ms: float = 0.0,
+        avg_execution_time_sec: float = 0.0,
+        recent_failure_rate: float = 0.0,
         is_online: bool = True,
     ) -> WorkerState:
         """Return a lightweight runtime state snapshot."""
@@ -104,9 +107,13 @@ class LocalWorker:
             worker_id=self.worker_id,
             supported_tools=list(self.supported_tools),
             queue_len=queue_len,
+            running_tasks=running_tasks,
+            max_concurrency=self.max_concurrency,
             cpu_util=cpu_util,
             memory_util=memory_util,
             network_latency_ms=network_latency_ms,
+            avg_execution_time_sec=avg_execution_time_sec,
+            recent_failure_rate=recent_failure_rate,
             is_online=is_online,
         )
 

@@ -115,7 +115,6 @@ def build_tool_trace_record(
     tool_call: ToolCall,
     decision: ScheduleDecision,
     result: ToolResult,
-    queue_wait_time_sec: float = 0.0,
     input_transfer_time_sec: float = 0.0,
     output_transfer_time_sec: float = 0.0,
     timeout: bool = False,
@@ -125,7 +124,7 @@ def build_tool_trace_record(
     _validate_decision(decision, expected_task_id=tool_call.tool_call_id, expected_task_kind="tool")
     _validate_tool_result(tool_call, result)
     total_latency_sec = (
-        queue_wait_time_sec
+        result.queue_wait_time_sec
         + input_transfer_time_sec
         + result.execution_time_sec
         + output_transfer_time_sec
@@ -137,7 +136,7 @@ def build_tool_trace_record(
         agent_id=tool_call.agent_id,
         selected_target=decision.selected_target,
         policy_name=decision.policy_name,
-        queue_wait_time_sec=queue_wait_time_sec,
+        queue_wait_time_sec=result.queue_wait_time_sec,
         execution_time_sec=result.execution_time_sec,
         total_latency_sec=total_latency_sec,
         success=result.success,

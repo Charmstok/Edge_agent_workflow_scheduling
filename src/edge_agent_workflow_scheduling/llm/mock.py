@@ -123,6 +123,7 @@ class MockLLMRuntime:
             device_id=self.device_id,
             queue_len=queue_len,
             running_requests=running_requests,
+            max_concurrency=self.max_concurrency,
             gpu_util=gpu_util,
             memory_util=memory_util,
             tokens_per_sec=self.tokens_per_sec,

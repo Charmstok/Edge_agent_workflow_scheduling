@@ -5,11 +5,42 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from math import isfinite
 from typing import Any, Self
 
 
 def _utc_now_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _validate_non_empty(value: str, field_name: str) -> None:
+    if not value.strip():
+        msg = f"{field_name} must be non-empty"
+        raise ValueError(msg)
+
+
+def _validate_non_negative(value: int | float, field_name: str) -> None:
+    if not isfinite(value) or value < 0:
+        msg = f"{field_name} must be finite and non-negative"
+        raise ValueError(msg)
+
+
+def _validate_non_negative_integer(value: int, field_name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        msg = f"{field_name} must be a non-negative integer"
+        raise ValueError(msg)
+
+
+def _validate_positive_integer(value: int, field_name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        msg = f"{field_name} must be a positive integer"
+        raise ValueError(msg)
+
+
+def _validate_fraction(value: float, field_name: str) -> None:
+    if not isfinite(value) or not 0.0 <= value <= 1.0:
+        msg = f"{field_name} must be between 0.0 and 1.0"
+        raise ValueError(msg)
 
 
 @dataclass(slots=True)
@@ -118,11 +149,29 @@ class WorkerState(SerializableSchema):
     worker_id: str
     supported_tools: list[str]
     queue_len: int = 0
+    running_tasks: int = 0
+    max_concurrency: int = 1
     cpu_util: float = 0.0
     memory_util: float = 0.0
     network_latency_ms: float = 0.0
+    avg_execution_time_sec: float = 0.0
+    recent_failure_rate: float = 0.0
     is_online: bool = True
     updated_at: str = field(default_factory=_utc_now_iso)
+
+    def __post_init__(self) -> None:
+        _validate_non_empty(self.worker_id, "worker_id")
+        _validate_non_negative_integer(self.queue_len, "queue_len")
+        _validate_non_negative_integer(self.running_tasks, "running_tasks")
+        _validate_positive_integer(self.max_concurrency, "max_concurrency")
+        if self.running_tasks > self.max_concurrency:
+            msg = "running_tasks must not exceed max_concurrency"
+            raise ValueError(msg)
+        _validate_fraction(self.cpu_util, "cpu_util")
+        _validate_fraction(self.memory_util, "memory_util")
+        _validate_non_negative(self.network_latency_ms, "network_latency_ms")
+        _validate_non_negative(self.avg_execution_time_sec, "avg_execution_time_sec")
+        _validate_fraction(self.recent_failure_rate, "recent_failure_rate")
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
@@ -142,12 +191,28 @@ class LLMInstanceState(SerializableSchema):
     device_id: str
     queue_len: int = 0
     running_requests: int = 0
+    max_concurrency: int = 1
     gpu_util: float = 0.0
     memory_util: float = 0.0
     tokens_per_sec: float = 0.0
     avg_latency_sec: float = 0.0
     is_online: bool = True
     updated_at: str = field(default_factory=_utc_now_iso)
+
+    def __post_init__(self) -> None:
+        _validate_non_empty(self.llm_id, "llm_id")
+        _validate_non_empty(self.model_name, "model_name")
+        _validate_non_empty(self.device_id, "device_id")
+        _validate_non_negative_integer(self.queue_len, "queue_len")
+        _validate_non_negative_integer(self.running_requests, "running_requests")
+        _validate_positive_integer(self.max_concurrency, "max_concurrency")
+        if self.running_requests > self.max_concurrency:
+            msg = "running_requests must not exceed max_concurrency"
+            raise ValueError(msg)
+        _validate_fraction(self.gpu_util, "gpu_util")
+        _validate_fraction(self.memory_util, "memory_util")
+        _validate_non_negative(self.tokens_per_sec, "tokens_per_sec")
+        _validate_non_negative(self.avg_latency_sec, "avg_latency_sec")
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
@@ -193,6 +258,13 @@ class LLMResult(SerializableSchema):
     error_message: str | None = None
     finished_at: str = field(default_factory=_utc_now_iso)
 
+    def __post_init__(self) -> None:
+        _validate_non_empty(self.llm_call_id, "llm_call_id")
+        _validate_non_empty(self.llm_id, "llm_id")
+        _validate_non_negative_integer(self.output_tokens, "output_tokens")
+        _validate_non_negative(self.queue_wait_time_sec, "queue_wait_time_sec")
+        _validate_non_negative(self.inference_time_sec, "inference_time_sec")
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         return cls(**data)
@@ -210,10 +282,17 @@ class ToolResult(SerializableSchema):
     worker_id: str
     success: bool
     output_uri: str | None = None
+    queue_wait_time_sec: float = 0.0
     execution_time_sec: float = 0.0
     error_message: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     finished_at: str = field(default_factory=_utc_now_iso)
+
+    def __post_init__(self) -> None:
+        _validate_non_empty(self.tool_call_id, "tool_call_id")
+        _validate_non_empty(self.worker_id, "worker_id")
+        _validate_non_negative(self.queue_wait_time_sec, "queue_wait_time_sec")
+        _validate_non_negative(self.execution_time_sec, "execution_time_sec")
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
