@@ -2,22 +2,15 @@
 
 from edge_agent_workflow_scheduling.tools.base import Tool, ToolExecution, ToolSpec
 from edge_agent_workflow_scheduling.tools.image_preprocess import (
-    ImageBuffer,
     ImageOperation,
     ImagePreprocessConfig,
     ImagePreprocessTool,
     ImageProfile,
-    blur_3x3,
-    edge_detect,
-    read_netpbm,
-    resize_nearest,
-    threshold_image,
-    write_pgm,
+    resolve_local_path,
 )
 from edge_agent_workflow_scheduling.tools.registry import ToolRegistry
 
 __all__ = [
-    "ImageBuffer",
     "ImageOperation",
     "ImageProfile",
     "ImagePreprocessConfig",
@@ -26,10 +19,5 @@ __all__ = [
     "ToolExecution",
     "ToolRegistry",
     "ToolSpec",
-    "blur_3x3",
-    "edge_detect",
-    "read_netpbm",
-    "resize_nearest",
-    "threshold_image",
-    "write_pgm",
+    "resolve_local_path",
 ]

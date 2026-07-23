@@ -1,5 +1,0 @@
-# Reinforcement learning configuration placeholder.
-algorithm: double_dqn
-reward:
-  timeout_penalty: 20.0
-  failure_penalty: 50.0

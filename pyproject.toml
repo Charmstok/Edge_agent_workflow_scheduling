@@ -8,7 +8,9 @@ license = { file = "LICENSE" }
 authors = [
   { name = "Edge Agent Workflow Scheduling Contributors" }
 ]
-dependencies = []
+dependencies = [
+  "pillow>=11.0.0,<13.0.0"
+]
 
 [dependency-groups]
 dev = [

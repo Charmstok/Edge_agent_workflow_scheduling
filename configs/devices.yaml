@@ -1,8 +1,0 @@
-# Worker device configuration placeholder.
-workers:
-  - worker_id: worker_local_1
-    supported_tools:
-      - image_preprocess
-  - worker_id: worker_local_2
-    supported_tools:
-      - image_preprocess
