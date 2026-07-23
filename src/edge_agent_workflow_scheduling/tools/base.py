@@ -29,7 +29,7 @@ class ToolExecution:
 class Tool(Protocol):
     """Interface implemented by concrete tool executors."""
 
-    tool_type: str
+    tool_name: str
     spec: ToolSpec
 
     def __call__(self, tool_call: ToolCall) -> ToolExecution:

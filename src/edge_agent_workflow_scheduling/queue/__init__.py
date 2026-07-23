@@ -1,13 +1,13 @@
-"""Workflow queue components."""
+"""Schedulable call queue components."""
 
 from edge_agent_workflow_scheduling.queue.workflow import (
-    InMemoryWorkflowQueue,
+    CallQueueItem,
+    InMemoryCallQueue,
     QueueOrdering,
-    WorkflowQueueItem,
 )
 
 __all__ = [
-    "InMemoryWorkflowQueue",
+    "CallQueueItem",
+    "InMemoryCallQueue",
     "QueueOrdering",
-    "WorkflowQueueItem",
 ]

@@ -45,14 +45,14 @@ class LocalWorker:
         """Execute a tool call and return a structured result."""
 
         start_time = perf_counter()
-        if tool_call.tool_type not in self.supported_tools:
+        if tool_call.tool_name not in self.supported_tools:
             return ToolResult(
                 tool_call_id=tool_call.tool_call_id,
                 worker_id=self.worker_id,
                 success=False,
                 execution_time_sec=perf_counter() - start_time,
                 error_message=(
-                    f"tool_type {tool_call.tool_type!r} is not supported by worker "
+                    f"tool_name {tool_call.tool_name!r} is not supported by worker "
                     f"{self.worker_id!r}"
                 ),
             )
@@ -118,7 +118,7 @@ class LocalWorker:
         )
 
     def _execute_supported_tool(self, tool_call: ToolCall) -> ToolExecution:
-        executor = self.tool_executors.get(tool_call.tool_type)
+        executor = self.tool_executors.get(tool_call.tool_name)
         if executor is not None:
             result = executor(tool_call)
             if isinstance(result, ToolExecution):
@@ -129,4 +129,4 @@ class LocalWorker:
 
     def _default_output_uri(self, tool_call: ToolCall) -> str:
         prefix = self.output_uri_prefix.rstrip("/")
-        return f"{prefix}/{self.worker_id}/{tool_call.tool_type}/{tool_call.tool_call_id}.json"
+        return f"{prefix}/{self.worker_id}/{tool_call.tool_name}/{tool_call.tool_call_id}.json"

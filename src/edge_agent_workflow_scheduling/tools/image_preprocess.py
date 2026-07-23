@@ -75,13 +75,13 @@ class ImagePreprocessTool:
     """Execute configurable image preprocessing with Pillow."""
 
     config: ImagePreprocessConfig
-    tool_type: str = "image_preprocess"
+    tool_name: str = "image_preprocess"
 
     @property
     def spec(self) -> ToolSpec:
         return {
             "type": "function",
-            "name": self.tool_type,
+            "name": self.tool_name,
             "description": "Apply configurable preprocessing operations to a local image.",
             "parameters": {
                 "type": "object",
@@ -100,7 +100,8 @@ class ImagePreprocessTool:
         }
 
     def __call__(self, tool_call: ToolCall) -> ToolExecution:
-        input_path = resolve_local_path(tool_call.input_uri, self.config.local_root)
+        input_uri, operations, operation_repeat = self._parse_arguments(tool_call.arguments)
+        input_path = resolve_local_path(input_uri, self.config.local_root)
         output_path = self._output_path(tool_call)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -108,17 +109,17 @@ class ImagePreprocessTool:
             input_profile = ImageProfile(source.width, source.height, source.mode)
             image = source.copy()
 
-        image = self._apply_operations(image)
+        image = self._apply_operations(image, operations, operation_repeat)
         output_profile = ImageProfile(image.width, image.height, image.mode)
         image.save(output_path)
 
-        operation_count = len(self.config.operations) * self.config.operation_repeat
+        operation_count = len(operations) * operation_repeat
         return ToolExecution(
             output_uri=output_path.resolve().as_uri(),
             metadata={
                 "backend": "pillow",
-                "operations": list(self.config.operations),
-                "operation_repeat": self.config.operation_repeat,
+                "operations": list(operations),
+                "operation_repeat": operation_repeat,
                 "operation_count": operation_count,
                 "input_width": input_profile.width,
                 "input_height": input_profile.height,
@@ -132,9 +133,14 @@ class ImagePreprocessTool:
             },
         )
 
-    def _apply_operations(self, image: Image.Image) -> Image.Image:
-        for _ in range(self.config.operation_repeat):
-            for operation in self.config.operations:
+    def _apply_operations(
+        self,
+        image: Image.Image,
+        operations: tuple[ImageOperation, ...],
+        operation_repeat: int,
+    ) -> Image.Image:
+        for _ in range(operation_repeat):
+            for operation in operations:
                 if operation == "grayscale":
                     image = image.convert("L")
                 elif operation == "resize":
@@ -152,6 +158,41 @@ class ImagePreprocessTool:
                 elif operation == "edge_detect":
                     image = image.convert("L").filter(ImageFilter.FIND_EDGES)
         return image
+
+    def _parse_arguments(
+        self,
+        arguments: dict[str, object],
+    ) -> tuple[str, tuple[ImageOperation, ...], int]:
+        allowed_arguments = {"input_uri", "operations", "operation_repeat"}
+        unsupported = sorted(set(arguments) - allowed_arguments)
+        if unsupported:
+            raise ValueError(f"unsupported arguments: {unsupported}")
+
+        input_uri = arguments.get("input_uri")
+        if not isinstance(input_uri, str) or not input_uri.strip():
+            raise ValueError("input_uri must be a non-empty string")
+
+        raw_operations = arguments.get("operations")
+        if raw_operations is None:
+            operations = self.config.operations
+        else:
+            if not isinstance(raw_operations, list) or not raw_operations:
+                raise ValueError("operations must be a non-empty array")
+            if any(not isinstance(operation, str) for operation in raw_operations):
+                raise ValueError("operations must contain only strings")
+            unsupported_operations = sorted(set(raw_operations) - set(ALL_IMAGE_OPERATIONS))
+            if unsupported_operations:
+                raise ValueError(f"unsupported operations: {unsupported_operations}")
+            operations = tuple(raw_operations)
+
+        operation_repeat = arguments.get("operation_repeat", self.config.operation_repeat)
+        if (
+            isinstance(operation_repeat, bool)
+            or not isinstance(operation_repeat, int)
+            or operation_repeat < 1
+        ):
+            raise ValueError("operation_repeat must be a positive integer")
+        return input_uri, operations, operation_repeat
 
     def _output_path(self, tool_call: ToolCall) -> Path:
         safe_id = tool_call.tool_call_id.replace("/", "_")

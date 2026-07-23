@@ -1,5 +1,6 @@
 """Scheduling policies and scheduler interfaces."""
 
+from edge_agent_workflow_scheduling.common import SchedulableCall
 from edge_agent_workflow_scheduling.scheduler.baseline import BaselineScheduler
 from edge_agent_workflow_scheduling.scheduler.policies import (
     DEFAULT_SCHEDULER_POLICY_REGISTRY,
@@ -11,17 +12,17 @@ from edge_agent_workflow_scheduling.scheduler.policies import (
     SchedulerPolicyRegistry,
 )
 from edge_agent_workflow_scheduling.scheduler.types import (
+    CallKind,
     ExecutionState,
     PolicySelection,
     SchedulerPolicy,
     SchedulingCandidate,
-    TaskKind,
-    WorkflowStep,
 )
 
 __all__ = [
     "DEFAULT_SCHEDULER_POLICY_REGISTRY",
     "BaselineScheduler",
+    "CallKind",
     "EarliestFinishTimeSchedulerPolicy",
     "ExecutionState",
     "LeastQueueSchedulerPolicy",
@@ -32,6 +33,5 @@ __all__ = [
     "SchedulerPolicyFactory",
     "SchedulerPolicyRegistry",
     "SchedulingCandidate",
-    "TaskKind",
-    "WorkflowStep",
+    "SchedulableCall",
 ]

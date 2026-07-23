@@ -8,34 +8,34 @@ from typing import Literal, Protocol
 from edge_agent_workflow_scheduling.common import (
     LLMCall,
     LLMInstanceState,
+    SchedulableCall,
     ToolCall,
     WorkerState,
 )
 
-WorkflowStep = LLMCall | ToolCall
-TaskKind = Literal["llm", "tool"]
+CallKind = Literal["llm", "tool"]
 ExecutionState = LLMInstanceState | WorkerState
 
 
 @dataclass(frozen=True, slots=True)
 class SchedulingCandidate:
-    """A filtered execution target that can run a workflow step."""
+    """A filtered execution target that can run a schedulable call."""
 
     target_id: str
-    task_kind: TaskKind
+    call_kind: CallKind
     state: ExecutionState
 
     @property
     def queue_len(self) -> int:
         return self.state.queue_len
 
-    def estimate_finish_time_sec(self, step: WorkflowStep) -> float:
-        if isinstance(step, LLMCall) and isinstance(self.state, LLMInstanceState):
-            return _estimate_llm_finish_time_sec(step, self.state)
-        if isinstance(step, ToolCall) and isinstance(self.state, WorkerState):
+    def estimate_finish_time_sec(self, call: SchedulableCall) -> float:
+        if isinstance(call, LLMCall) and isinstance(self.state, LLMInstanceState):
+            return _estimate_llm_finish_time_sec(call, self.state)
+        if isinstance(call, ToolCall) and isinstance(self.state, WorkerState):
             return _estimate_worker_finish_time_sec(self.state)
 
-        msg = "candidate state does not match workflow step type"
+        msg = "candidate state does not match call type"
         raise TypeError(msg)
 
 
@@ -55,38 +55,42 @@ class SchedulerPolicy(Protocol):
 
     def select(
         self,
-        step: WorkflowStep,
+        call: SchedulableCall,
         candidates: list[SchedulingCandidate],
     ) -> PolicySelection:
         """Select one candidate from a non-empty candidate list."""
 
 
-def task_kind_for_step(step: WorkflowStep) -> TaskKind:
-    if isinstance(step, LLMCall):
+def call_kind_for(call: SchedulableCall) -> CallKind:
+    if isinstance(call, LLMCall):
         return "llm"
-    if isinstance(step, ToolCall):
+    if isinstance(call, ToolCall):
         return "tool"
 
-    msg = "step must be an LLMCall or ToolCall"
+    msg = "call must be an LLMCall or ToolCall"
     raise TypeError(msg)
 
 
-def task_id_for_step(step: WorkflowStep) -> str:
-    if isinstance(step, LLMCall):
-        return step.llm_call_id
-    if isinstance(step, ToolCall):
-        return step.tool_call_id
+def call_id_for(call: SchedulableCall) -> str:
+    if isinstance(call, LLMCall):
+        return call.llm_call_id
+    if isinstance(call, ToolCall):
+        return call.tool_call_id
 
-    msg = "step must be an LLMCall or ToolCall"
+    msg = "call must be an LLMCall or ToolCall"
     raise TypeError(msg)
 
 
-def _estimate_llm_finish_time_sec(step: LLMCall, state: LLMInstanceState) -> float:
+def _estimate_llm_finish_time_sec(call: LLMCall, state: LLMInstanceState) -> float:
     queue_unit_sec = state.avg_latency_sec if state.avg_latency_sec > 0 else 1.0
     queue_delay_sec = state.queue_len * queue_unit_sec
-    total_tokens = step.input_tokens + step.estimated_output_tokens
-    inference_time_sec = total_tokens / state.tokens_per_sec if state.tokens_per_sec > 0 else float(
-        "inf",
+    total_tokens = call.input_tokens + call.estimated_output_tokens
+    inference_time_sec = (
+        total_tokens / state.tokens_per_sec
+        if state.tokens_per_sec > 0
+        else float(
+            "inf",
+        )
     )
     return queue_delay_sec + inference_time_sec
 

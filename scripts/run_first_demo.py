@@ -14,14 +14,14 @@ from edge_agent_workflow_scheduling.agents import (
     SimulatedAgent,
     ToolCallTemplate,
 )
-from edge_agent_workflow_scheduling.common import LLMCall, ToolCall, TraceRecord
+from edge_agent_workflow_scheduling.common import CallStatus, LLMCall, ToolCall, TraceRecord
 from edge_agent_workflow_scheduling.llm import MockLLMRuntime
 from edge_agent_workflow_scheduling.profiler import (
     JsonlTraceLogger,
     build_llm_trace_record,
     build_tool_trace_record,
 )
-from edge_agent_workflow_scheduling.queue import InMemoryWorkflowQueue
+from edge_agent_workflow_scheduling.queue import InMemoryCallQueue
 from edge_agent_workflow_scheduling.scheduler import (
     DEFAULT_SCHEDULER_POLICY_REGISTRY,
     BaselineScheduler,
@@ -49,21 +49,21 @@ def run_demo(
     policy: str = "round_robin",
     trace_path: Path = Path("data/traces/first_demo.jsonl"),
     data_dir: Path = Path("data/first_demo"),
-    steps_per_agent: int = 10,
+    runs_per_agent: int = 10,
 ) -> DemoSummary:
-    if steps_per_agent < 1:
-        raise ValueError("steps_per_agent must be at least 1")
+    if runs_per_agent < 1:
+        raise ValueError("runs_per_agent must be at least 1")
 
     input_dir = (data_dir / "inputs").resolve()
     output_dir = (data_dir / "outputs").resolve()
-    _create_images(input_dir, steps_per_agent)
+    _create_images(input_dir, runs_per_agent)
 
-    queue = InMemoryWorkflowQueue()
+    queue = InMemoryCallQueue()
     for index, agent in enumerate(_create_agents(input_dir)):
         queue.push_many(
-            agent.generate_workflow_steps(
-                steps_per_agent,
-                start_sequence_id=index * steps_per_agent,
+            agent.generate_calls(
+                runs_per_agent,
+                start_sequence_id=index * runs_per_agent,
             )
         )
 
@@ -76,27 +76,29 @@ def run_demo(
     worker_counts: Counter[str] = Counter()
     llm_counts: Counter[str] = Counter()
 
-    while step := queue.pop():
-        if isinstance(step, LLMCall):
+    while call := queue.pop():
+        call.transition_to(CallStatus.RUNNING)
+        if isinstance(call, LLMCall):
             decision = scheduler.schedule(
-                step,
+                call,
                 llm_states=[runtime.get_state() for runtime in runtimes.values()],
                 worker_states=[],
             )
-            result = runtimes[decision.selected_target].generate(step)
-            record = build_llm_trace_record(llm_call=step, decision=decision, result=result)
+            result = runtimes[decision.selected_target].generate(call)
+            record = build_llm_trace_record(llm_call=call, decision=decision, result=result)
             llm_counts[decision.selected_target] += 1
-        elif isinstance(step, ToolCall):
+        elif isinstance(call, ToolCall):
             decision = scheduler.schedule(
-                step,
+                call,
                 llm_states=[],
                 worker_states=[worker.get_state() for worker in workers.values()],
             )
-            result = workers[decision.selected_target].run_tool(step)
-            record = build_tool_trace_record(tool_call=step, decision=decision, result=result)
+            result = workers[decision.selected_target].run_tool(call)
+            record = build_tool_trace_record(tool_call=call, decision=decision, result=result)
             worker_counts[decision.selected_target] += 1
         else:
-            raise TypeError(f"unsupported step type: {type(step)!r}")
+            raise TypeError(f"unsupported call type: {type(call)!r}")
+        call.transition_to(CallStatus.SUCCEEDED if result.success else CallStatus.FAILED)
         records.append(record)
         logger.write(record)
 
@@ -120,7 +122,7 @@ def _create_agents(input_dir: Path) -> list[SimulatedAgent]:
             SimulatedAgent(
                 agent_id=agent_id,
                 template=ToolCallTemplate(
-                    tool_type="image_preprocess",
+                    tool_name="image_preprocess",
                     input_uri_prefix=input_dir.as_uri(),
                     input_size_mb=0.02,
                     image_count=1,
@@ -176,13 +178,13 @@ def _create_workers(output_dir: Path) -> dict[str, LocalWorker]:
     return {worker.worker_id: worker for worker in workers}
 
 
-def _create_images(input_dir: Path, steps_per_agent: int) -> None:
+def _create_images(input_dir: Path, runs_per_agent: int) -> None:
     input_dir.mkdir(parents=True, exist_ok=True)
     for agent_id, offset, base_size in (
         ("agent_7b", 0, 32),
-        ("agent_27b", steps_per_agent, 48),
+        ("agent_27b", runs_per_agent, 48),
     ):
-        for sequence_id in range(offset, offset + steps_per_agent):
+        for sequence_id in range(offset, offset + runs_per_agent):
             size = base_size + sequence_id % 4 * 8
             color = (sequence_id * 31 % 255, 90, 170)
             Image.new("RGB", (size, size), color).save(
@@ -197,7 +199,7 @@ def main() -> None:
         default="round_robin",
         choices=DEFAULT_SCHEDULER_POLICY_REGISTRY.available_policies(),
     )
-    parser.add_argument("--steps-per-agent", type=int, default=10)
+    parser.add_argument("--runs-per-agent", type=int, default=10)
     parser.add_argument("--trace-path", type=Path, default=Path("data/traces/first_demo.jsonl"))
     parser.add_argument("--data-dir", type=Path, default=Path("data/first_demo"))
     args = parser.parse_args()
@@ -205,7 +207,7 @@ def main() -> None:
         policy=args.policy,
         trace_path=args.trace_path,
         data_dir=args.data_dir,
-        steps_per_agent=args.steps_per_agent,
+        runs_per_agent=args.runs_per_agent,
     )
     print(f"trace_path: {summary.trace_path}")
     print(f"total_records: {summary.total_records}")

@@ -2,9 +2,8 @@
 
 ## Project
 
-This project studies multi-objective scheduling for Agent workflows on
-heterogeneous edge resources. A workflow contains both LLM inference steps and
-Tool steps. The scheduler selects:
+This project studies multi-objective scheduling for dynamic Agent calls on
+heterogeneous edge resources. The scheduler selects:
 
 - one of several LLM instances with different model sizes, throughput, quality,
   energy profiles, and queue states;
@@ -49,13 +48,13 @@ Use a smaller workload while developing:
 ```bash
 uv run python scripts/run_first_demo.py \
   --policy earliest_finish_time \
-  --steps-per-agent 2 \
+  --runs-per-agent 2 \
   --trace-path data/traces/first_demo.jsonl
 ```
 
 The demo creates two simulated Agents, two heterogeneous mock LLM runtimes, and
-two local Worker replicas. LLM steps use deterministic mock inference; Tool
-steps execute `ImagePreprocessTool` with Pillow and record real execution time.
+two local Worker replicas. LLM calls use deterministic mock inference; Tool
+calls execute `ImagePreprocessTool` with Pillow and record real execution time.
 Results are written as JSONL traces under `data/traces/`.
 
 Run static checks:

@@ -14,27 +14,27 @@ class ToolRegistry:
     _tools: dict[str, Tool] = field(default_factory=dict)
 
     def register(self, tool: Tool, *, replace: bool = False) -> None:
-        if not tool.tool_type:
-            msg = "tool_type must be non-empty"
+        if not tool.tool_name:
+            msg = "tool_name must be non-empty"
             raise ValueError(msg)
-        if tool.tool_type in self._tools and not replace:
-            msg = f"tool_type {tool.tool_type!r} is already registered"
+        if tool.tool_name in self._tools and not replace:
+            msg = f"tool_name {tool.tool_name!r} is already registered"
             raise ValueError(msg)
 
-        self._tools[tool.tool_type] = tool
+        self._tools[tool.tool_name] = tool
 
-    def get(self, tool_type: str) -> Tool:
+    def get(self, tool_name: str) -> Tool:
         try:
-            return self._tools[tool_type]
+            return self._tools[tool_name]
         except KeyError as exc:
-            msg = f"tool_type {tool_type!r} is not registered"
+            msg = f"tool_name {tool_name!r} is not registered"
             raise KeyError(msg) from exc
 
     def supported_tools(self) -> list[str]:
         return sorted(self._tools)
 
     def tools(self) -> list[ToolSpec]:
-        return [self._tools[tool_type].spec for tool_type in self.supported_tools()]
+        return [self._tools[tool_name].spec for tool_name in self.supported_tools()]
 
     def specs(self) -> list[ToolSpec]:
         return self.tools()

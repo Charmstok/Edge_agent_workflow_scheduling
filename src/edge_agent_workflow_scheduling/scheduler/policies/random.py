@@ -5,11 +5,11 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field
 
+from edge_agent_workflow_scheduling.common import SchedulableCall
 from edge_agent_workflow_scheduling.scheduler.policies.common import require_candidates
 from edge_agent_workflow_scheduling.scheduler.types import (
     PolicySelection,
     SchedulingCandidate,
-    WorkflowStep,
 )
 
 
@@ -22,7 +22,7 @@ class RandomSchedulerPolicy:
 
     def select(
         self,
-        step: WorkflowStep,
+        call: SchedulableCall,
         candidates: list[SchedulingCandidate],
     ) -> PolicySelection:
         require_candidates(candidates)

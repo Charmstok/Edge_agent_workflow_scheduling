@@ -18,7 +18,7 @@ from edge_agent_workflow_scheduling.common import (
 
 @dataclass(frozen=True, slots=True)
 class JsonlTraceLogger:
-    """Append-only JSONL logger for completed workflow-step traces."""
+    """Append-only JSONL logger for completed call traces."""
 
     trace_path: Path
 
@@ -73,9 +73,9 @@ def build_llm_trace_record(
     input_transfer_time_sec: float = 0.0,
     output_transfer_time_sec: float = 0.0,
 ) -> TraceRecord:
-    """Build a profiler trace for a completed LLM inference step."""
+    """Build a profiler trace for a completed LLM inference call."""
 
-    _validate_decision(decision, expected_task_id=llm_call.llm_call_id, expected_task_kind="llm")
+    _validate_decision(decision, expected_call_id=llm_call.llm_call_id, expected_call_kind="llm")
     _validate_llm_result(llm_call, result)
     execution_time_sec = result.inference_time_sec
     total_latency_sec = (
@@ -86,9 +86,11 @@ def build_llm_trace_record(
     )
 
     return TraceRecord(
-        task_id=llm_call.llm_call_id,
-        task_kind="llm",
+        run_id=llm_call.run_id,
+        call_id=llm_call.llm_call_id,
+        call_kind="llm",
         agent_id=llm_call.agent_id,
+        turn_index=llm_call.turn_index,
         selected_target=decision.selected_target,
         policy_name=decision.policy_name,
         queue_wait_time_sec=result.queue_wait_time_sec,
@@ -96,7 +98,7 @@ def build_llm_trace_record(
         total_latency_sec=total_latency_sec,
         success=result.success,
         timeout=timeout,
-        reward=calculate_step_reward(
+        reward=calculate_call_reward(
             total_latency_sec=total_latency_sec,
             success=result.success,
             timeout=timeout,
@@ -119,9 +121,13 @@ def build_tool_trace_record(
     output_transfer_time_sec: float = 0.0,
     timeout: bool = False,
 ) -> TraceRecord:
-    """Build a profiler trace for a completed tool execution step."""
+    """Build a profiler trace for a completed Tool call."""
 
-    _validate_decision(decision, expected_task_id=tool_call.tool_call_id, expected_task_kind="tool")
+    _validate_decision(
+        decision,
+        expected_call_id=tool_call.tool_call_id,
+        expected_call_kind="tool",
+    )
     _validate_tool_result(tool_call, result)
     total_latency_sec = (
         result.queue_wait_time_sec
@@ -131,9 +137,11 @@ def build_tool_trace_record(
     )
 
     return TraceRecord(
-        task_id=tool_call.tool_call_id,
-        task_kind="tool",
+        run_id=tool_call.run_id,
+        call_id=tool_call.tool_call_id,
+        call_kind="tool",
         agent_id=tool_call.agent_id,
+        turn_index=tool_call.turn_index,
         selected_target=decision.selected_target,
         policy_name=decision.policy_name,
         queue_wait_time_sec=result.queue_wait_time_sec,
@@ -141,19 +149,20 @@ def build_tool_trace_record(
         total_latency_sec=total_latency_sec,
         success=result.success,
         timeout=timeout,
-        reward=calculate_step_reward(
+        reward=calculate_call_reward(
             total_latency_sec=total_latency_sec,
             success=result.success,
             timeout=timeout,
         ),
-        tool_type=tool_call.tool_type,
+        function_call_id=tool_call.call_id,
+        tool_name=tool_call.tool_name,
         input_transfer_time_sec=input_transfer_time_sec,
         output_transfer_time_sec=output_transfer_time_sec,
         error_message=result.error_message,
     )
 
 
-def calculate_step_reward(
+def calculate_call_reward(
     *,
     total_latency_sec: float,
     success: bool,
@@ -161,7 +170,7 @@ def calculate_step_reward(
     timeout_penalty: float = 20.0,
     failure_penalty: float = 50.0,
 ) -> float:
-    """Compute the first-stage per-step reward."""
+    """Compute the first-stage per-call reward."""
 
     reward = -total_latency_sec
     if timeout:
@@ -174,14 +183,14 @@ def calculate_step_reward(
 def _validate_decision(
     decision: ScheduleDecision,
     *,
-    expected_task_id: str,
-    expected_task_kind: str,
+    expected_call_id: str,
+    expected_call_kind: str,
 ) -> None:
-    if decision.task_id != expected_task_id:
-        msg = f"decision task_id {decision.task_id!r} does not match {expected_task_id!r}"
+    if decision.call_id != expected_call_id:
+        msg = f"decision call_id {decision.call_id!r} does not match {expected_call_id!r}"
         raise ValueError(msg)
-    if decision.task_kind != expected_task_kind:
-        msg = f"decision task_kind {decision.task_kind!r} does not match {expected_task_kind!r}"
+    if decision.call_kind != expected_call_kind:
+        msg = f"decision call_kind {decision.call_kind!r} does not match {expected_call_kind!r}"
         raise ValueError(msg)
 
 
