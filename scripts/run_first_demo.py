@@ -152,6 +152,21 @@ def _create_runtimes() -> dict[str, MockLLMRuntime]:
 
 
 def _create_workers(output_dir: Path) -> dict[str, LocalWorker]:
+    workers = (
+        LocalWorker(
+            "worker_local_1",
+            _create_tool_registry(output_dir),
+        ),
+        LocalWorker(
+            "worker_local_2",
+            _create_tool_registry(output_dir),
+            artificial_delay_sec=0.001,
+        ),
+    )
+    return {worker.worker_id: worker for worker in workers}
+
+
+def _create_tool_registry(output_dir: Path) -> ToolRegistry:
     registry = ToolRegistry()
     registry.register(
         ImagePreprocessTool(
@@ -162,20 +177,7 @@ def _create_workers(output_dir: Path) -> dict[str, LocalWorker]:
             )
         )
     )
-    workers = (
-        LocalWorker(
-            "worker_local_1",
-            registry.supported_tools(),
-            tool_executors=registry.as_executor_mapping(),
-        ),
-        LocalWorker(
-            "worker_local_2",
-            registry.supported_tools(),
-            artificial_delay_sec=0.001,
-            tool_executors=registry.as_executor_mapping(),
-        ),
-    )
-    return {worker.worker_id: worker for worker in workers}
+    return registry
 
 
 def _create_images(input_dir: Path, runs_per_agent: int) -> None:

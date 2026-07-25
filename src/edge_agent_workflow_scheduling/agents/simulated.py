@@ -57,7 +57,11 @@ class SimulatedAgent:
             agent_id=self.agent_id,
             call_id=f"call_{self.agent_id}_{sequence_id:04d}",
             tool_name=self.template.tool_name,
-            arguments={"input_uri": self._build_input_uri(sequence_id)},
+            arguments={
+                "input_uri": self._build_input_uri(sequence_id),
+                "operation_repeat": None,
+                "operations": None,
+            },
             metadata={
                 "input_size_mb": self.template.input_size_mb,
                 "page_count": self.template.page_count,

@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from urllib.parse import unquote, urlparse
 
 from PIL import Image, ImageFilter
 
-from edge_agent_workflow_scheduling.common import ToolCall
 from edge_agent_workflow_scheduling.tools.base import ToolExecution, ToolSpec
 
 ImageOperation = Literal["grayscale", "resize", "blur", "threshold", "edge_detect"]
@@ -86,23 +85,32 @@ class ImagePreprocessTool:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "input_uri": {"type": "string"},
+                    "input_uri": {"type": "string", "minLength": 1},
                     "operations": {
-                        "type": "array",
+                        "type": ["array", "null"],
                         "items": {"type": "string", "enum": list(ALL_IMAGE_OPERATIONS)},
+                        "minItems": 1,
                     },
-                    "operation_repeat": {"type": "integer", "minimum": 1},
+                    "operation_repeat": {
+                        "type": ["integer", "null"],
+                        "minimum": 1,
+                    },
                 },
-                "required": ["input_uri"],
+                "required": ["input_uri", "operations", "operation_repeat"],
                 "additionalProperties": False,
             },
             "strict": True,
         }
 
-    def __call__(self, tool_call: ToolCall) -> ToolExecution:
-        input_uri, operations, operation_repeat = self._parse_arguments(tool_call.arguments)
+    def execute(
+        self,
+        arguments: dict[str, Any],
+        *,
+        invocation_id: str,
+    ) -> ToolExecution:
+        input_uri, operations, operation_repeat = self._parse_arguments(arguments)
         input_path = resolve_local_path(input_uri, self.config.local_root)
-        output_path = self._output_path(tool_call)
+        output_path = self._output_path(invocation_id)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         with Image.open(input_path) as source:
@@ -115,7 +123,8 @@ class ImagePreprocessTool:
 
         operation_count = len(operations) * operation_repeat
         return ToolExecution(
-            output_uri=output_path.resolve().as_uri(),
+            success=True,
+            output={"output_uri": output_path.resolve().as_uri()},
             metadata={
                 "backend": "pillow",
                 "operations": list(operations),
@@ -185,7 +194,9 @@ class ImagePreprocessTool:
                 raise ValueError(f"unsupported operations: {unsupported_operations}")
             operations = tuple(raw_operations)
 
-        operation_repeat = arguments.get("operation_repeat", self.config.operation_repeat)
+        operation_repeat = arguments.get("operation_repeat")
+        if operation_repeat is None:
+            operation_repeat = self.config.operation_repeat
         if (
             isinstance(operation_repeat, bool)
             or not isinstance(operation_repeat, int)
@@ -194,8 +205,8 @@ class ImagePreprocessTool:
             raise ValueError("operation_repeat must be a positive integer")
         return input_uri, operations, operation_repeat
 
-    def _output_path(self, tool_call: ToolCall) -> Path:
-        safe_id = tool_call.tool_call_id.replace("/", "_")
+    def _output_path(self, invocation_id: str) -> Path:
+        safe_id = invocation_id.replace("/", "_").replace("\\", "_")
         return self.config.output_dir / f"{safe_id}{self.config.output_suffix}"
 
 

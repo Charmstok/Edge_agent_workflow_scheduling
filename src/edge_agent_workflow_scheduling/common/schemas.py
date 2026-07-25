@@ -419,9 +419,10 @@ class ToolResult(SerializableSchema):
     tool_call_id: str
     worker_id: str
     success: bool
-    output_uri: str | None = None
+    output: Any = None
     queue_wait_time_sec: float = 0.0
     execution_time_sec: float = 0.0
+    error_code: str | None = None
     error_message: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     finished_at: str = field(default_factory=_utc_now_iso)
@@ -431,6 +432,15 @@ class ToolResult(SerializableSchema):
         _validate_non_empty(self.worker_id, "worker_id")
         _validate_non_negative(self.queue_wait_time_sec, "queue_wait_time_sec")
         _validate_non_negative(self.execution_time_sec, "execution_time_sec")
+        try:
+            json.dumps(self.output, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("output must be JSON serializable") from exc
+        _validate_json_object(self.metadata, "metadata")
+        if self.success and (self.error_code is not None or self.error_message is not None):
+            raise ValueError("successful ToolResult cannot contain an error")
+        if not self.success and (not self.error_code or not self.error_message):
+            raise ValueError("failed ToolResult requires error_code and error_message")
 
 
 @dataclass(slots=True)
