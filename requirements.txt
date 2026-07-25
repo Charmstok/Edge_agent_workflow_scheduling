@@ -1,0 +1,3 @@
+# Main coordinator/runtime environment. Keep coordinator-only packages out of
+# requirements-edge.txt so edge nodes do not install unnecessary dependencies.
+-r requirements-edge.txt

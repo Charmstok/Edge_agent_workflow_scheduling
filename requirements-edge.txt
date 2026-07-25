@@ -1,0 +1,3 @@
+# Runtime dependencies shared by Tool workers on macOS, Linux, and Raspberry Pi OS.
+jsonschema==4.26.0
+Pillow==12.3.0

@@ -8,16 +8,6 @@ license = { file = "LICENSE" }
 authors = [
   { name = "Edge Agent Workflow Scheduling Contributors" }
 ]
-dependencies = [
-  "jsonschema>=4.23.0,<5.0.0",
-  "pillow>=11.0.0,<13.0.0"
-]
-
-[dependency-groups]
-dev = [
-  "pytest>=8.0.0",
-  "ruff>=0.6.0"
-]
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]

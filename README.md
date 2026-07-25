@@ -20,18 +20,40 @@ The research roadmap is documented in
 
 ## Install
 
-The project requires Python 3.11+ and uses `uv`:
+The project requires Python 3.11+ and uses `uv` to create `.venv`. Dependencies
+are installed from requirements files; the project does not use `uv.lock`. Use
+the same Python minor version on the main device and edge nodes when collecting
+comparable experiment results.
+
+For development on the main experiment device:
 
 ```bash
-uv sync --dev
+uv venv --python 3.11 .venv
+source .venv/bin/activate
+uv pip install -r requirements-dev.txt
+uv pip install --no-deps -e .
 ```
+
+For a Raspberry Pi or another Tool-only edge node:
+
+```bash
+uv venv --python 3.11 .venv
+source .venv/bin/activate
+uv pip install -r requirements-edge.txt
+uv pip install --no-deps -e .
+```
+
+Use a 64-bit Raspberry Pi OS when possible so Pillow and its dependencies can
+use prebuilt wheels. If Pillow must build from source, install the platform's
+JPEG, zlib, and FreeType development packages first. Edge nodes do not install
+main-device development or future LLM-provider dependencies.
 
 ## Run
 
 Run the local end-to-end prototype:
 
 ```bash
-uv run python scripts/run_first_demo.py --policy round_robin
+python scripts/run_first_demo.py --policy round_robin
 ```
 
 Available policies:
@@ -46,7 +68,7 @@ earliest_finish_time
 Use a smaller workload while developing:
 
 ```bash
-uv run python scripts/run_first_demo.py \
+python scripts/run_first_demo.py \
   --policy earliest_finish_time \
   --runs-per-agent 2 \
   --trace-path data/traces/first_demo.jsonl
@@ -60,7 +82,7 @@ Results are written as JSONL traces under `data/traces/`.
 Run static checks:
 
 ```bash
-uv run ruff check .
+ruff check .
 ```
 
 ## Layout
