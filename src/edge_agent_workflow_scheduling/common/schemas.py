@@ -163,6 +163,7 @@ class AgentRun(SerializableSchema):
     turn_index: int = 0
     conversation_items: list[dict[str, Any]] = field(default_factory=list)
     final_output: str | None = None
+    error_code: str | None = None
     error_message: str | None = None
     started_at: str = field(default_factory=_utc_now_iso)
     finished_at: str | None = None
@@ -173,6 +174,8 @@ class AgentRun(SerializableSchema):
         _validate_non_empty(self.task_id, "task_id")
         _validate_non_negative_integer(self.turn_index, "turn_index")
         _validate_json_object_list(self.conversation_items, "conversation_items")
+        if self.error_code is not None:
+            _validate_non_empty(self.error_code, "error_code")
         self.status = AgentRunStatus(self.status)
         if self.status in {AgentRunStatus.COMPLETED, AgentRunStatus.FAILED}:
             self.finished_at = self.finished_at or _utc_now_iso()
