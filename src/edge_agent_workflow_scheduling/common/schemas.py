@@ -206,6 +206,7 @@ class ToolCall(SerializableSchema):
     tool_name: str
     arguments: dict[str, Any]
     turn_index: int = 0
+    required_capabilities: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
     deadline_sec: float | None = None
     priority: int = 0
@@ -220,6 +221,10 @@ class ToolCall(SerializableSchema):
         _validate_non_empty(self.tool_name, "tool_name")
         _validate_non_negative_integer(self.turn_index, "turn_index")
         _validate_json_object(self.arguments, "arguments")
+        _validate_string_list(self.required_capabilities, "required_capabilities")
+        if len(set(self.required_capabilities)) != len(self.required_capabilities):
+            msg = "required_capabilities must not contain duplicates"
+            raise ValueError(msg)
         _validate_json_object(self.metadata, "metadata")
         if self.deadline_sec is not None:
             _validate_non_negative(self.deadline_sec, "deadline_sec")
@@ -289,95 +294,6 @@ class LLMCall(SerializableSchema):
 
 
 SchedulableCall: TypeAlias = LLMCall | ToolCall
-
-
-@dataclass(slots=True)
-class WorkerInfo(SerializableSchema):
-    """Static information about a worker."""
-
-    worker_id: str
-    supported_tools: list[str]
-    max_concurrency: int = 1
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(slots=True)
-class LLMInstanceInfo(SerializableSchema):
-    """Static information about an LLM runtime instance."""
-
-    llm_id: str
-    model_name: str
-    endpoint_url: str
-    device_id: str
-    model_size_b: float | None = None
-    accelerator: str | None = None
-    max_concurrency: int = 1
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(slots=True)
-class WorkerState(SerializableSchema):
-    """Dynamic runtime state reported by a worker."""
-
-    worker_id: str
-    supported_tools: list[str]
-    queue_len: int = 0
-    running_tasks: int = 0
-    max_concurrency: int = 1
-    cpu_util: float = 0.0
-    memory_util: float = 0.0
-    network_latency_ms: float = 0.0
-    avg_execution_time_sec: float = 0.0
-    recent_failure_rate: float = 0.0
-    is_online: bool = True
-    updated_at: str = field(default_factory=_utc_now_iso)
-
-    def __post_init__(self) -> None:
-        _validate_non_empty(self.worker_id, "worker_id")
-        _validate_non_negative_integer(self.queue_len, "queue_len")
-        _validate_non_negative_integer(self.running_tasks, "running_tasks")
-        _validate_positive_integer(self.max_concurrency, "max_concurrency")
-        if self.running_tasks > self.max_concurrency:
-            msg = "running_tasks must not exceed max_concurrency"
-            raise ValueError(msg)
-        _validate_fraction(self.cpu_util, "cpu_util")
-        _validate_fraction(self.memory_util, "memory_util")
-        _validate_non_negative(self.network_latency_ms, "network_latency_ms")
-        _validate_non_negative(self.avg_execution_time_sec, "avg_execution_time_sec")
-        _validate_fraction(self.recent_failure_rate, "recent_failure_rate")
-
-
-@dataclass(slots=True)
-class LLMInstanceState(SerializableSchema):
-    """Dynamic runtime state reported by an LLM instance."""
-
-    llm_id: str
-    model_name: str
-    device_id: str
-    queue_len: int = 0
-    running_requests: int = 0
-    max_concurrency: int = 1
-    gpu_util: float = 0.0
-    memory_util: float = 0.0
-    tokens_per_sec: float = 0.0
-    avg_latency_sec: float = 0.0
-    is_online: bool = True
-    updated_at: str = field(default_factory=_utc_now_iso)
-
-    def __post_init__(self) -> None:
-        _validate_non_empty(self.llm_id, "llm_id")
-        _validate_non_empty(self.model_name, "model_name")
-        _validate_non_empty(self.device_id, "device_id")
-        _validate_non_negative_integer(self.queue_len, "queue_len")
-        _validate_non_negative_integer(self.running_requests, "running_requests")
-        _validate_positive_integer(self.max_concurrency, "max_concurrency")
-        if self.running_requests > self.max_concurrency:
-            msg = "running_requests must not exceed max_concurrency"
-            raise ValueError(msg)
-        _validate_fraction(self.gpu_util, "gpu_util")
-        _validate_fraction(self.memory_util, "memory_util")
-        _validate_non_negative(self.tokens_per_sec, "tokens_per_sec")
-        _validate_non_negative(self.avg_latency_sec, "avg_latency_sec")
 
 
 @dataclass(slots=True)

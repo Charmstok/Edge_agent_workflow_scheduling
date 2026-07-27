@@ -13,6 +13,7 @@ from edge_agent_workflow_scheduling.scheduler.policies import (
 )
 from edge_agent_workflow_scheduling.scheduler.types import (
     CallKind,
+    ExecutionProfile,
     ExecutionState,
     PolicySelection,
     SchedulerPolicy,
@@ -24,6 +25,7 @@ __all__ = [
     "BaselineScheduler",
     "CallKind",
     "EarliestFinishTimeSchedulerPolicy",
+    "ExecutionProfile",
     "ExecutionState",
     "LeastQueueSchedulerPolicy",
     "PolicySelection",

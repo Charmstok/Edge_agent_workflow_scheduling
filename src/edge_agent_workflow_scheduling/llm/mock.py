@@ -2,52 +2,29 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from copy import deepcopy
+from dataclasses import dataclass
 from time import sleep
-from typing import Any
 
-from edge_agent_workflow_scheduling.common import (
-    LLMCall,
-    LLMInstanceInfo,
-    LLMInstanceState,
-    LLMResult,
-)
+from edge_agent_workflow_scheduling.common import LLMCall, LLMResult
+from edge_agent_workflow_scheduling.resources import LLMInstanceProfile, LLMInstanceState
 
 
 @dataclass(slots=True)
 class MockLLMRuntime:
     """Deterministic in-process LLM runtime used before real model services exist."""
 
-    llm_id: str
-    model_name: str
-    device_id: str
+    profile: LLMInstanceProfile
     tokens_per_sec: float
-    max_concurrency: int = 1
     queue_wait_time_sec: float = 0.0
     fixed_inference_overhead_sec: float = 0.0
     default_output_tokens: int = 128
     output_uri_prefix: str = "local://outputs/llm"
-    endpoint_url: str | None = None
-    model_size_b: float | None = None
-    accelerator: str | None = None
     sleep_scale: float = 0.0
-    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if not self.llm_id:
-            msg = "llm_id must be non-empty"
-            raise ValueError(msg)
-        if not self.model_name:
-            msg = "model_name must be non-empty"
-            raise ValueError(msg)
-        if not self.device_id:
-            msg = "device_id must be non-empty"
-            raise ValueError(msg)
         if self.tokens_per_sec <= 0:
             msg = "tokens_per_sec must be positive"
-            raise ValueError(msg)
-        if self.max_concurrency < 1:
-            msg = "max_concurrency must be at least 1"
             raise ValueError(msg)
         if self.queue_wait_time_sec < 0:
             msg = "queue_wait_time_sec must be non-negative"
@@ -62,9 +39,31 @@ class MockLLMRuntime:
             msg = "sleep_scale must be non-negative"
             raise ValueError(msg)
 
+    @property
+    def llm_id(self) -> str:
+        return self.profile.llm_id
+
+    @property
+    def model_name(self) -> str:
+        return self.profile.model
+
+    @property
+    def max_concurrency(self) -> int:
+        return self.profile.max_concurrency
+
     def generate(self, llm_call: LLMCall) -> LLMResult:
         """Generate a deterministic mock result for an LLM call."""
 
+        missing_capabilities = sorted(
+            set(llm_call.required_capabilities) - set(self.profile.capabilities)
+        )
+        if missing_capabilities:
+            return LLMResult(
+                llm_call_id=llm_call.llm_call_id,
+                llm_id=self.llm_id,
+                success=False,
+                error_message=f"unsupported capabilities: {missing_capabilities}",
+            )
         if llm_call.model_name is not None and llm_call.model_name != self.model_name:
             return LLMResult(
                 llm_call_id=llm_call.llm_call_id,
@@ -91,26 +90,17 @@ class MockLLMRuntime:
             inference_time_sec=inference_time_sec,
         )
 
-    def to_info(self) -> LLMInstanceInfo:
-        """Return static runtime metadata."""
+    def to_profile(self) -> LLMInstanceProfile:
+        """Return a copy of this instance's static profile."""
 
-        return LLMInstanceInfo(
-            llm_id=self.llm_id,
-            model_name=self.model_name,
-            endpoint_url=self.endpoint_url or f"mock://{self.llm_id}",
-            device_id=self.device_id,
-            model_size_b=self.model_size_b,
-            accelerator=self.accelerator,
-            max_concurrency=self.max_concurrency,
-            metadata=dict(self.metadata),
-        )
+        return deepcopy(self.profile)
 
     def get_state(
         self,
         *,
         queue_len: int = 0,
         running_requests: int = 0,
-        gpu_util: float = 0.0,
+        compute_util: float = 0.0,
         memory_util: float = 0.0,
         avg_latency_sec: float = 0.0,
         is_online: bool = True,
@@ -119,12 +109,9 @@ class MockLLMRuntime:
 
         return LLMInstanceState(
             llm_id=self.llm_id,
-            model_name=self.model_name,
-            device_id=self.device_id,
             queue_len=queue_len,
             running_requests=running_requests,
-            max_concurrency=self.max_concurrency,
-            gpu_util=gpu_util,
+            compute_util=compute_util,
             memory_util=memory_util,
             tokens_per_sec=self.tokens_per_sec,
             avg_latency_sec=avg_latency_sec,

@@ -22,6 +22,11 @@ from edge_agent_workflow_scheduling.profiler import (
     build_tool_trace_record,
 )
 from edge_agent_workflow_scheduling.queue import InMemoryCallQueue
+from edge_agent_workflow_scheduling.resources import (
+    LLMInstanceProfile,
+    ResourceRegistry,
+    ToolReplicaProfile,
+)
 from edge_agent_workflow_scheduling.scheduler import (
     DEFAULT_SCHEDULER_POLICY_REGISTRY,
     BaselineScheduler,
@@ -69,6 +74,7 @@ def run_demo(
 
     runtimes = _create_runtimes()
     workers = _create_workers(output_dir)
+    resources = _create_resource_registry(runtimes, workers)
     scheduler = BaselineScheduler(policy)
     logger = JsonlTraceLogger(trace_path)
     logger.clear()
@@ -81,8 +87,7 @@ def run_demo(
         if isinstance(call, LLMCall):
             decision = scheduler.schedule(
                 call,
-                llm_states=[runtime.get_state() for runtime in runtimes.values()],
-                worker_states=[],
+                resources=resources,
             )
             result = runtimes[decision.selected_target].generate(call)
             record = build_llm_trace_record(llm_call=call, decision=decision, result=result)
@@ -90,8 +95,7 @@ def run_demo(
         elif isinstance(call, ToolCall):
             decision = scheduler.schedule(
                 call,
-                llm_states=[],
-                worker_states=[worker.get_state() for worker in workers.values()],
+                resources=resources,
             )
             result = workers[decision.selected_target].run_tool(call)
             record = build_tool_trace_record(tool_call=call, decision=decision, result=result)
@@ -145,25 +149,90 @@ def _create_agents(input_dir: Path) -> list[SimulatedAgent]:
 
 def _create_runtimes() -> dict[str, MockLLMRuntime]:
     runtimes = (
-        MockLLMRuntime("llm_qwen_7b_mock", "qwen-7b", "laptop", 160),
-        MockLLMRuntime("llm_qwen_27b_mock", "qwen-27b", "laptop", 80),
+        MockLLMRuntime(
+            _create_llm_profile("llm_qwen_7b_mock", "qwen-7b", 7, 160, 0.72),
+            160,
+        ),
+        MockLLMRuntime(
+            _create_llm_profile("llm_qwen_27b_mock", "qwen-27b", 27, 80, 0.86),
+            80,
+        ),
     )
     return {runtime.llm_id: runtime for runtime in runtimes}
+
+
+def _create_llm_profile(
+    llm_id: str,
+    model: str,
+    model_size_b: float,
+    tokens_per_sec: float,
+    quality: float,
+) -> LLMInstanceProfile:
+    return LLMInstanceProfile(
+        llm_id=llm_id,
+        provider="mock",
+        model=model,
+        node_id="laptop",
+        platform="macos",
+        executor_type="mock",
+        base_url=f"mock://{llm_id}",
+        model_size_b=model_size_b,
+        capabilities=["function_calling"],
+        context_window_tokens=32768,
+        quality_profile={"image_preprocess": quality},
+        token_profile={"tokens_per_sec": tokens_per_sec},
+        energy_profile={"joules_per_token": model_size_b / 1000},
+    )
 
 
 def _create_workers(output_dir: Path) -> dict[str, LocalWorker]:
     workers = (
         LocalWorker(
-            "worker_local_1",
+            _create_tool_replica_profile("worker_local_1", "macbook_local", 0.004),
             _create_tool_registry(output_dir),
         ),
         LocalWorker(
-            "worker_local_2",
+            _create_tool_replica_profile("worker_local_2", "ubuntu_logical", 0.006),
             _create_tool_registry(output_dir),
             artificial_delay_sec=0.001,
         ),
     )
     return {worker.worker_id: worker for worker in workers}
+
+
+def _create_tool_replica_profile(
+    replica_id: str,
+    node_id: str,
+    execution_time_sec: float,
+) -> ToolReplicaProfile:
+    return ToolReplicaProfile(
+        replica_id=replica_id,
+        tool_name="image_preprocess",
+        node_id=node_id,
+        platform="macos" if node_id == "macbook_local" else "ubuntu",
+        implementation_version="pillow-12.3.0",
+        executor_type="local",
+        capabilities=["grayscale", "resize", "blur", "threshold", "edge_detect"],
+        latency_profile={"execution_time_sec": execution_time_sec},
+        energy_profile={"joules_per_call": 0.02},
+        quality_profile={"image_fidelity": 1.0},
+        deployment_config={
+            "requirements_file": "requirements-edge.txt",
+            "system_packages": ["libjpeg", "zlib", "freetype"],
+        },
+    )
+
+
+def _create_resource_registry(
+    runtimes: dict[str, MockLLMRuntime],
+    workers: dict[str, LocalWorker],
+) -> ResourceRegistry:
+    resources = ResourceRegistry()
+    for runtime in runtimes.values():
+        resources.register_llm(runtime.to_profile(), runtime.get_state())
+    for worker in workers.values():
+        resources.register_tool_replica(worker.to_profile(), worker.get_state())
+    return resources
 
 
 def _create_tool_registry(output_dir: Path) -> ToolRegistry:
