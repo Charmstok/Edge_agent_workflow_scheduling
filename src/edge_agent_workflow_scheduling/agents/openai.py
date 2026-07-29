@@ -4,15 +4,17 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from openai import OpenAI
+if TYPE_CHECKING:
+    from openai import OpenAI
 
 from edge_agent_workflow_scheduling.agents.function_calling import LLMResponse
 from edge_agent_workflow_scheduling.common import LLMCall
 from edge_agent_workflow_scheduling.tools import ToolSpec
 
 _PROTECTED_OPTIONS = {
+    "background",
     "input",
     "instructions",
     "model",
@@ -25,10 +27,10 @@ _PROTECTED_OPTIONS = {
 
 @dataclass(slots=True)
 class OpenAIResponsesBackend:
-    """Call the official OpenAI Python SDK and normalize its response."""
+    """Call an injected OpenAI-compatible Responses client and normalize its response."""
 
     model: str
-    client: OpenAI = field(default_factory=OpenAI)
+    client: OpenAI
     response_options: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -60,8 +62,15 @@ class OpenAIResponsesBackend:
             timeout=timeout_sec,
             **self.response_options,
         )
+        status = getattr(response, "status", None)
+        if status not in {None, "completed"}:
+            error = getattr(response, "error", None)
+            message = getattr(error, "message", None) or f"response ended with status {status!r}"
+            raise RuntimeError(message)
         output_items = [item.model_dump(mode="json", exclude_none=True) for item in response.output]
         metadata: dict[str, Any] = {}
+        if status is not None:
+            metadata["status"] = status
         if response.usage is not None:
             metadata["usage"] = response.usage.model_dump(mode="json", exclude_none=True)
         return LLMResponse(

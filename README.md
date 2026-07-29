@@ -91,6 +91,7 @@ ruff check .
 src/edge_agent_workflow_scheduling/
 ├── agents/       # workload generation
 ├── common/       # calls, results, target state, trace schemas
+├── executors/    # provider-neutral real and profile execution adapters
 ├── llm/          # mock LLM runtime
 ├── profiler/     # JSONL trace logging
 ├── queue/        # mixed LLM/Tool queue

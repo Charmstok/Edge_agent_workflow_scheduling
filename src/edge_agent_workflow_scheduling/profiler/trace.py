@@ -70,8 +70,6 @@ def build_llm_trace_record(
     decision: ScheduleDecision,
     result: LLMResult,
     timeout: bool = False,
-    input_transfer_time_sec: float = 0.0,
-    output_transfer_time_sec: float = 0.0,
 ) -> TraceRecord:
     """Build a profiler trace for a completed LLM inference call."""
 
@@ -80,9 +78,9 @@ def build_llm_trace_record(
     execution_time_sec = result.inference_time_sec
     total_latency_sec = (
         result.queue_wait_time_sec
-        + input_transfer_time_sec
+        + result.input_transfer_time_sec
         + execution_time_sec
-        + output_transfer_time_sec
+        + result.output_transfer_time_sec
     )
 
     return TraceRecord(
@@ -103,9 +101,9 @@ def build_llm_trace_record(
             success=result.success,
             timeout=timeout,
         ),
-        model_name=llm_call.model_name,
-        input_transfer_time_sec=input_transfer_time_sec,
-        output_transfer_time_sec=output_transfer_time_sec,
+        model_name=result.response_model or llm_call.model_name,
+        input_transfer_time_sec=result.input_transfer_time_sec,
+        output_transfer_time_sec=result.output_transfer_time_sec,
         input_tokens=llm_call.input_tokens,
         output_tokens=result.output_tokens,
         error_message=result.error_message,
@@ -117,8 +115,6 @@ def build_tool_trace_record(
     tool_call: ToolCall,
     decision: ScheduleDecision,
     result: ToolResult,
-    input_transfer_time_sec: float = 0.0,
-    output_transfer_time_sec: float = 0.0,
     timeout: bool = False,
 ) -> TraceRecord:
     """Build a profiler trace for a completed Tool call."""
@@ -131,9 +127,9 @@ def build_tool_trace_record(
     _validate_tool_result(tool_call, result)
     total_latency_sec = (
         result.queue_wait_time_sec
-        + input_transfer_time_sec
+        + result.input_transfer_time_sec
         + result.execution_time_sec
-        + output_transfer_time_sec
+        + result.output_transfer_time_sec
     )
 
     return TraceRecord(
@@ -156,8 +152,8 @@ def build_tool_trace_record(
         ),
         function_call_id=tool_call.call_id,
         tool_name=tool_call.tool_name,
-        input_transfer_time_sec=input_transfer_time_sec,
-        output_transfer_time_sec=output_transfer_time_sec,
+        input_transfer_time_sec=result.input_transfer_time_sec,
+        output_transfer_time_sec=result.output_transfer_time_sec,
         error_message=result.error_message,
     )
 

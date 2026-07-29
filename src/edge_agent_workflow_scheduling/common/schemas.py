@@ -316,31 +316,67 @@ class LLMResult(SerializableSchema):
     llm_call_id: str
     llm_id: str
     success: bool
+    output_items: list[dict[str, Any]] = field(default_factory=list)
+    output_text: str = ""
+    response_id: str | None = None
+    response_model: str | None = None
     output_uri: str | None = None
     output_tokens: int = 0
     queue_wait_time_sec: float = 0.0
+    input_transfer_time_sec: float = 0.0
     inference_time_sec: float = 0.0
+    output_transfer_time_sec: float = 0.0
+    energy_joules: float = 0.0
+    error_code: str | None = None
     error_message: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     finished_at: str = field(default_factory=_utc_now_iso)
 
     def __post_init__(self) -> None:
         _validate_non_empty(self.llm_call_id, "llm_call_id")
         _validate_non_empty(self.llm_id, "llm_id")
+        _validate_json_object_list(self.output_items, "output_items")
+        if not isinstance(self.output_text, str):
+            raise ValueError("output_text must be a string")
+        for value, field_name in (
+            (self.response_id, "response_id"),
+            (self.response_model, "response_model"),
+            (self.output_uri, "output_uri"),
+        ):
+            if value is not None:
+                _validate_non_empty(value, field_name)
         _validate_non_negative_integer(self.output_tokens, "output_tokens")
         _validate_non_negative(self.queue_wait_time_sec, "queue_wait_time_sec")
+        _validate_non_negative(self.input_transfer_time_sec, "input_transfer_time_sec")
         _validate_non_negative(self.inference_time_sec, "inference_time_sec")
+        _validate_non_negative(self.output_transfer_time_sec, "output_transfer_time_sec")
+        _validate_non_negative(self.energy_joules, "energy_joules")
+        _validate_json_object(self.metadata, "metadata")
+        if self.success and (self.error_code is not None or self.error_message is not None):
+            raise ValueError("successful LLMResult cannot contain an error")
+        if not self.success and (not self.error_code or not self.error_message):
+            raise ValueError("failed LLMResult requires error_code and error_message")
+
+    @property
+    def execution_time_sec(self) -> float:
+        """Return the provider-neutral execution duration."""
+
+        return self.inference_time_sec
 
 
 @dataclass(slots=True)
 class ToolResult(SerializableSchema):
-    """Execution result returned by a worker."""
+    """Execution result returned by a Tool replica."""
 
     tool_call_id: str
-    worker_id: str
+    replica_id: str
     success: bool
     output: Any = None
     queue_wait_time_sec: float = 0.0
+    input_transfer_time_sec: float = 0.0
     execution_time_sec: float = 0.0
+    output_transfer_time_sec: float = 0.0
+    energy_joules: float = 0.0
     error_code: str | None = None
     error_message: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -348,9 +384,12 @@ class ToolResult(SerializableSchema):
 
     def __post_init__(self) -> None:
         _validate_non_empty(self.tool_call_id, "tool_call_id")
-        _validate_non_empty(self.worker_id, "worker_id")
+        _validate_non_empty(self.replica_id, "replica_id")
         _validate_non_negative(self.queue_wait_time_sec, "queue_wait_time_sec")
+        _validate_non_negative(self.input_transfer_time_sec, "input_transfer_time_sec")
         _validate_non_negative(self.execution_time_sec, "execution_time_sec")
+        _validate_non_negative(self.output_transfer_time_sec, "output_transfer_time_sec")
+        _validate_non_negative(self.energy_joules, "energy_joules")
         try:
             json.dumps(self.output, allow_nan=False)
         except (TypeError, ValueError) as exc:

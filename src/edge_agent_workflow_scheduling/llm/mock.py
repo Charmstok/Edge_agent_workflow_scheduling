@@ -62,6 +62,7 @@ class MockLLMRuntime:
                 llm_call_id=llm_call.llm_call_id,
                 llm_id=self.llm_id,
                 success=False,
+                error_code="unsupported_capability",
                 error_message=f"unsupported capabilities: {missing_capabilities}",
             )
         if llm_call.model_name is not None and llm_call.model_name != self.model_name:
@@ -69,6 +70,7 @@ class MockLLMRuntime:
                 llm_call_id=llm_call.llm_call_id,
                 llm_id=self.llm_id,
                 success=False,
+                error_code="model_mismatch",
                 error_message=(
                     f"model_name {llm_call.model_name!r} does not match runtime model "
                     f"{self.model_name!r}"
@@ -84,10 +86,16 @@ class MockLLMRuntime:
             llm_call_id=llm_call.llm_call_id,
             llm_id=self.llm_id,
             success=True,
+            response_model=self.profile.model,
             output_uri=self._default_output_uri(llm_call),
             output_tokens=output_tokens,
             queue_wait_time_sec=self.queue_wait_time_sec,
             inference_time_sec=inference_time_sec,
+            energy_joules=(
+                (llm_call.input_tokens + output_tokens)
+                * self.profile.energy_profile.get("joules_per_token", 0.0)
+            ),
+            metadata={"executor_type": self.profile.executor_type},
         )
 
     def to_profile(self) -> LLMInstanceProfile:

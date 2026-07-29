@@ -15,6 +15,7 @@ from edge_agent_workflow_scheduling.agents import (
     ToolCallTemplate,
 )
 from edge_agent_workflow_scheduling.common import CallStatus, LLMCall, ToolCall, TraceRecord
+from edge_agent_workflow_scheduling.executors import LocalToolExecutor, MockLLMExecutor
 from edge_agent_workflow_scheduling.llm import MockLLMRuntime
 from edge_agent_workflow_scheduling.profiler import (
     JsonlTraceLogger,
@@ -74,6 +75,10 @@ def run_demo(
 
     runtimes = _create_runtimes()
     workers = _create_workers(output_dir)
+    llm_executors = {llm_id: MockLLMExecutor(runtime) for llm_id, runtime in runtimes.items()}
+    tool_executors = {
+        replica_id: LocalToolExecutor(worker) for replica_id, worker in workers.items()
+    }
     resources = _create_resource_registry(runtimes, workers)
     scheduler = BaselineScheduler(policy)
     logger = JsonlTraceLogger(trace_path)
@@ -89,7 +94,7 @@ def run_demo(
                 call,
                 resources=resources,
             )
-            result = runtimes[decision.selected_target].generate(call)
+            result = llm_executors[decision.selected_target].execute(call)
             record = build_llm_trace_record(llm_call=call, decision=decision, result=result)
             llm_counts[decision.selected_target] += 1
         elif isinstance(call, ToolCall):
@@ -97,7 +102,7 @@ def run_demo(
                 call,
                 resources=resources,
             )
-            result = workers[decision.selected_target].run_tool(call)
+            result = tool_executors[decision.selected_target].execute(call)
             record = build_tool_trace_record(tool_call=call, decision=decision, result=result)
             worker_counts[decision.selected_target] += 1
         else:
@@ -197,7 +202,7 @@ def _create_workers(output_dir: Path) -> dict[str, LocalWorker]:
             artificial_delay_sec=0.001,
         ),
     )
-    return {worker.worker_id: worker for worker in workers}
+    return {worker.replica_id: worker for worker in workers}
 
 
 def _create_tool_replica_profile(

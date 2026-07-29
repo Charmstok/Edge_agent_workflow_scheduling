@@ -28,7 +28,7 @@ class LocalWorker:
             raise ValueError(msg)
 
     @property
-    def worker_id(self) -> str:
+    def replica_id(self) -> str:
         return self.profile.replica_id
 
     @property
@@ -42,13 +42,13 @@ class LocalWorker:
         if tool_call.tool_name != self.profile.tool_name:
             return ToolResult(
                 tool_call_id=tool_call.tool_call_id,
-                worker_id=self.worker_id,
+                replica_id=self.replica_id,
                 success=False,
                 execution_time_sec=perf_counter() - start_time,
                 error_code="unsupported_tool",
                 error_message=(
                     f"tool_name {tool_call.tool_name!r} is not supported by worker "
-                    f"{self.worker_id!r}"
+                    f"{self.replica_id!r}"
                 ),
             )
         missing_capabilities = sorted(
@@ -57,7 +57,7 @@ class LocalWorker:
         if missing_capabilities:
             return ToolResult(
                 tool_call_id=tool_call.tool_call_id,
-                worker_id=self.worker_id,
+                replica_id=self.replica_id,
                 success=False,
                 execution_time_sec=perf_counter() - start_time,
                 error_code="unsupported_capability",
@@ -75,10 +75,11 @@ class LocalWorker:
             )
             return ToolResult(
                 tool_call_id=tool_call.tool_call_id,
-                worker_id=self.worker_id,
+                replica_id=self.replica_id,
                 success=tool_execution.success,
                 output=tool_execution.output,
                 execution_time_sec=perf_counter() - start_time,
+                energy_joules=self.profile.energy_profile.get("joules_per_call", 0.0),
                 metadata=dict(tool_execution.metadata),
                 error_code=tool_execution.error_code,
                 error_message=tool_execution.error_message,
@@ -86,7 +87,7 @@ class LocalWorker:
         except Exception as exc:
             return ToolResult(
                 tool_call_id=tool_call.tool_call_id,
-                worker_id=self.worker_id,
+                replica_id=self.replica_id,
                 success=False,
                 execution_time_sec=perf_counter() - start_time,
                 error_code="worker_execution_failed",
