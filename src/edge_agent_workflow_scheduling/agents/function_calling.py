@@ -230,7 +230,7 @@ class FunctionCallingAgent:
             ]
 
             if not function_items:
-                final_output = response.output_text.strip() or _extract_output_text(
+                final_output = response.output_text.strip() or extract_output_text(
                     response.output_items
                 )
                 if not final_output:
@@ -256,7 +256,7 @@ class FunctionCallingAgent:
             round_tool_calls: list[ToolCall] = []
             for item in function_items:
                 try:
-                    tool_call = _to_tool_call(
+                    tool_call = tool_call_from_response_item(
                         item,
                         run_id=resolved_run_id,
                         agent_id=self.agent_id,
@@ -354,7 +354,7 @@ class FunctionCallingAgent:
             agent_run.transition_to(AgentRunStatus.READY_FOR_LLM)
 
 
-def _to_tool_call(
+def tool_call_from_response_item(
     item: dict[str, Any],
     *,
     run_id: str,
@@ -388,7 +388,7 @@ def _to_tool_call(
     )
 
 
-def _extract_output_text(items: list[dict[str, Any]]) -> str:
+def extract_output_text(items: list[dict[str, Any]]) -> str:
     texts: list[str] = []
     for item in items:
         if item.get("type") != "message":

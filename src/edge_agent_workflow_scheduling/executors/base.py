@@ -90,6 +90,33 @@ class ExecutorFactoryRegistry:
         return executor
 
 
+@dataclass(slots=True)
+class ExecutorPool:
+    """Lazily create and retain executors for selected resource profiles."""
+
+    factories: ExecutorFactoryRegistry
+    _llm_executors: dict[str, LLMExecutor] = field(default_factory=dict)
+    _tool_executors: dict[str, ToolExecutor] = field(default_factory=dict)
+
+    def llm_executor(self, profile: LLMInstanceProfile) -> LLMExecutor:
+        executor = self._llm_executors.get(profile.llm_id)
+        if executor is None:
+            executor = self.factories.create_llm(profile)
+            self._llm_executors[profile.llm_id] = executor
+        elif executor.profile.executor_type != profile.executor_type:
+            raise ValueError("cached LLM executor_type does not match the resource profile")
+        return executor
+
+    def tool_executor(self, profile: ToolReplicaProfile) -> ToolExecutor:
+        executor = self._tool_executors.get(profile.replica_id)
+        if executor is None:
+            executor = self.factories.create_tool(profile)
+            self._tool_executors[profile.replica_id] = executor
+        elif executor.profile.executor_type != profile.executor_type:
+            raise ValueError("cached Tool executor_type does not match the resource profile")
+        return executor
+
+
 def validate_timeout(timeout_sec: float | None) -> None:
     if timeout_sec is not None and timeout_sec <= 0:
         raise ValueError("timeout_sec must be positive when provided")

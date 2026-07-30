@@ -7,6 +7,7 @@ from edge_agent_workflow_scheduling.executors.adapters import (
 )
 from edge_agent_workflow_scheduling.executors.base import (
     ExecutorFactoryRegistry,
+    ExecutorPool,
     LLMExecutor,
     LLMExecutorFactory,
     ToolExecutor,
@@ -21,6 +22,7 @@ from edge_agent_workflow_scheduling.executors.profile import (
 __all__ = [
     "BackendLLMExecutor",
     "ExecutorFactoryRegistry",
+    "ExecutorPool",
     "LLMExecutor",
     "LLMExecutorFactory",
     "LocalToolExecutor",

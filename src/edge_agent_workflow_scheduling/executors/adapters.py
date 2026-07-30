@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from time import perf_counter
 from typing import Any
 
-from edge_agent_workflow_scheduling.agents import LLMBackend
+from edge_agent_workflow_scheduling.agents.function_calling import LLMBackend
 from edge_agent_workflow_scheduling.common import LLMCall, LLMResult, ToolCall, ToolResult
 from edge_agent_workflow_scheduling.executors.base import (
     llm_call_error,
