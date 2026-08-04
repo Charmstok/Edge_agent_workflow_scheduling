@@ -50,34 +50,62 @@ main-device development or future LLM-provider dependencies.
 
 ## Run
 
-Run the local end-to-end prototype:
+Run all Milestone 2 demos. Without `ARK_API_KEY`, the online demo is skipped
+while offline, multi-Tool, and replay verification still complete:
+
+```bash
+python scripts/run_agent_demos.py --mode all
+```
+
+Artifacts are written under `data/milestone_2_8/`. Each executed demo writes a
+public experiment manifest, a complete call trace, and an AgentRun or replay
+summary.
+
+Run one mode at a time:
+
+```bash
+python scripts/run_agent_demos.py --mode offline
+python scripts/run_agent_demos.py --mode multi-tool
+python scripts/run_agent_demos.py --mode replay
+```
+
+The replay mode reads `data/milestone_2_8/offline/trace.json` by default and
+compares `round_robin` with `least_queue`. Another trace or policy set can be
+selected explicitly:
+
+```bash
+python scripts/run_agent_demos.py \
+  --mode replay \
+  --replay-trace path/to/trace.json \
+  --replay-policies least_queue earliest_finish_time
+```
+
+### Online LLM configuration
+
+The online profile uses Volcengine Ark and lives in
+`configs/llm_profiles.toml`. API key values must not be added to that file.
+Export the Ark API key, then run the online demo:
+
+```bash
+export ARK_API_KEY="your-api-key"
+python scripts/run_agent_demos.py --mode online
+```
+
+Use repeated live runs to observe variation in Tool selection and latency:
+
+```bash
+python scripts/run_agent_demos.py --mode online --online-runs 5
+```
+
+The program creates and caches the OpenAI-compatible SDK client only when the
+Doubao instance is selected. The SDK sends requests to Volcengine's configured
+`base_url`; it does not use the OpenAI platform.
+
+The earlier mixed-call JSONL prototype remains available:
 
 ```bash
 python scripts/run_first_demo.py --policy round_robin
 ```
-
-Available policies:
-
-```text
-random
-round_robin
-least_queue
-earliest_finish_time
-```
-
-Use a smaller workload while developing:
-
-```bash
-python scripts/run_first_demo.py \
-  --policy earliest_finish_time \
-  --runs-per-agent 2 \
-  --trace-path data/traces/first_demo.jsonl
-```
-
-The demo creates two simulated Agents, two heterogeneous mock LLM runtimes, and
-two local Worker replicas. LLM calls use deterministic mock inference; Tool
-calls execute `ImagePreprocessTool` with Pillow and record real execution time.
-Results are written as JSONL traces under `data/traces/`.
 
 Run static checks:
 
@@ -93,12 +121,13 @@ src/edge_agent_workflow_scheduling/
 ├── common/       # calls, results, target state, trace schemas
 ├── executors/    # provider-neutral real and profile execution adapters
 ├── llm/          # mock LLM runtime
-├── profiler/     # JSONL trace logging
+├── profiler/     # experiment traces, manifests, and replay
 ├── queue/        # mixed LLM/Tool queue
 ├── scheduler/    # baseline policies
 ├── tools/        # real Tool wrappers
 └── workers/      # local real-Tool execution
 
 scripts/
+├── run_agent_demos.py
 └── run_first_demo.py
 ```

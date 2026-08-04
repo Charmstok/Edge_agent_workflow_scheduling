@@ -1,0 +1,22 @@
+# Public model metadata only. API key values must stay in environment variables.
+
+[[llm_instances]]
+llm_id = "online-doubao"
+provider = "volcengine"
+model = "doubao-seed-2-0-lite-260428"
+node_id = "volcengine-ark-api"
+platform = "cloud"
+executor_type = "openai_responses"
+base_url = "https://ark.cn-beijing.volces.com/api/v3"
+capabilities = ["function_calling"]
+max_concurrency = 4
+secret_env_vars = ["ARK_API_KEY"]
+
+[llm_instances.deployment_config]
+requires_api_key = true
+
+[llm_instances.deployment_config.model_parameters]
+temperature = 0
+
+# The OpenAI Python SDK is used only as a client for Volcengine's
+# Responses-compatible endpoint. ARK_API_KEY remains in the environment.

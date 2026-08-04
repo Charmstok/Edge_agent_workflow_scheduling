@@ -27,7 +27,7 @@ from edge_agent_workflow_scheduling.common import (
     ToolCall,
     ToolResult,
 )
-from edge_agent_workflow_scheduling.executors import (
+from edge_agent_workflow_scheduling.executors.base import (
     ExecutorPool,
     LLMExecutor,
     ToolExecutor,
