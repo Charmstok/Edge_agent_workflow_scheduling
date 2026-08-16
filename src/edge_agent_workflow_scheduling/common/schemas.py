@@ -306,7 +306,42 @@ class ScheduleDecision(SerializableSchema):
     policy_name: str
     score: float | None = None
     reason: str | None = None
+    candidate_target_ids: list[str] = field(default_factory=list)
+    action_mask: list[bool] = field(default_factory=list)
+    rejection_reasons: dict[str, list[str]] = field(default_factory=dict)
     decided_at: str = field(default_factory=_utc_now_iso)
+
+    def __post_init__(self) -> None:
+        for value, name in (
+            (self.call_id, "call_id"),
+            (self.call_kind, "call_kind"),
+            (self.selected_target, "selected_target"),
+            (self.policy_name, "policy_name"),
+        ):
+            _validate_non_empty(value, name)
+        if self.call_kind not in {"llm", "tool"}:
+            raise ValueError("call_kind must be 'llm' or 'tool'")
+        if len(self.candidate_target_ids) != len(self.action_mask):
+            raise ValueError("candidate_target_ids and action_mask must have equal lengths")
+        _validate_string_list(self.candidate_target_ids, "candidate_target_ids")
+        if self.candidate_target_ids != sorted(self.candidate_target_ids):
+            raise ValueError("candidate_target_ids must use stable sorted order")
+        if any(not isinstance(value, bool) for value in self.action_mask):
+            raise ValueError("action_mask must contain booleans")
+        _validate_json_object(self.rejection_reasons, "rejection_reasons")
+        for target_id, reasons in self.rejection_reasons.items():
+            _validate_non_empty(target_id, "rejection_reasons target ID")
+            _validate_string_list(reasons, f"rejection_reasons.{target_id}")
+        unknown_rejections = set(self.rejection_reasons) - set(self.candidate_target_ids)
+        if unknown_rejections:
+            raise ValueError("rejection_reasons contains an unknown target")
+        if self.candidate_target_ids:
+            try:
+                selected_index = self.candidate_target_ids.index(self.selected_target)
+            except ValueError as exc:
+                raise ValueError("selected_target must appear in candidate_target_ids") from exc
+            if not self.action_mask[selected_index]:
+                raise ValueError("selected_target must be feasible in action_mask")
 
 
 @dataclass(slots=True)

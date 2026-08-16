@@ -1,7 +1,18 @@
 """Scheduling policies and scheduler interfaces."""
 
 from edge_agent_workflow_scheduling.common import SchedulableCall
-from edge_agent_workflow_scheduling.scheduler.baseline import BaselineScheduler
+from edge_agent_workflow_scheduling.scheduler.baseline import (
+    BaselineScheduler,
+    NoFeasibleTargetError,
+)
+from edge_agent_workflow_scheduling.scheduler.objectives import (
+    MissingObjectiveProfileError,
+    ObjectiveNormalization,
+    ObjectiveVector,
+    ObjectiveWeights,
+    estimate_objectives,
+    normalized_cost,
+)
 from edge_agent_workflow_scheduling.scheduler.policies import (
     DEFAULT_SCHEDULER_POLICY_REGISTRY,
     EarliestFinishTimeSchedulerPolicy,
@@ -28,6 +39,11 @@ __all__ = [
     "ExecutionProfile",
     "ExecutionState",
     "LeastQueueSchedulerPolicy",
+    "MissingObjectiveProfileError",
+    "NoFeasibleTargetError",
+    "ObjectiveNormalization",
+    "ObjectiveVector",
+    "ObjectiveWeights",
     "PolicySelection",
     "RandomSchedulerPolicy",
     "RoundRobinSchedulerPolicy",
@@ -36,4 +52,6 @@ __all__ = [
     "SchedulerPolicyRegistry",
     "SchedulingCandidate",
     "SchedulableCall",
+    "estimate_objectives",
+    "normalized_cost",
 ]

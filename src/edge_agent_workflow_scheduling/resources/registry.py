@@ -7,6 +7,12 @@ from dataclasses import dataclass, field
 from typing import TypeAlias
 
 from edge_agent_workflow_scheduling.common import LLMCall, SchedulableCall, ToolCall
+from edge_agent_workflow_scheduling.resources.constraints import (
+    ActionMask,
+    SchedulingConstraints,
+    profiled_quality,
+    resolve_scheduling_constraints,
+)
 from edge_agent_workflow_scheduling.resources.models import (
     LLMInstanceProfile,
     LLMInstanceState,
@@ -130,27 +136,68 @@ class ResourceRegistry:
             if registered_tool == tool_name
         ]
 
-    def action_mask(self, call: SchedulableCall) -> dict[str, bool]:
-        if isinstance(call, LLMCall):
-            return {
-                snapshot.profile.llm_id: _can_run_llm(call, snapshot)
-                for snapshot in self.llm_snapshots()
-            }
-        if isinstance(call, ToolCall):
-            return {
-                snapshot.profile.replica_id: _can_run_tool(call, snapshot)
-                for snapshot in self.tool_snapshots()
-            }
-        raise TypeError("call must be an LLMCall or ToolCall")
+    def action_mask_details(
+        self,
+        call: SchedulableCall,
+        *,
+        constraints: SchedulingConstraints | None = None,
+    ) -> ActionMask:
+        """Return stable target-aligned feasibility values and rejection reasons."""
 
-    def eligible_snapshots(self, call: SchedulableCall) -> list[ResourceSnapshot]:
-        mask = self.action_mask(call)
+        resolved_constraints = resolve_scheduling_constraints(call, constraints)
+        snapshots = self.snapshots_for(call)
+        target_ids: list[str] = []
+        values: list[bool] = []
+        rejection_reasons: list[tuple[str, ...]] = []
+        for snapshot in snapshots:
+            if isinstance(snapshot, LLMInstanceSnapshot):
+                target_id = snapshot.profile.llm_id
+                reasons = _llm_rejection_reasons(call, snapshot, resolved_constraints)
+            else:
+                target_id = snapshot.profile.replica_id
+                reasons = _tool_rejection_reasons(call, snapshot, resolved_constraints)
+            target_ids.append(target_id)
+            values.append(not reasons)
+            rejection_reasons.append(tuple(reasons))
+
+        return ActionMask(
+            target_ids=tuple(target_ids),
+            values=tuple(values),
+            rejection_reasons=tuple(rejection_reasons),
+        )
+
+    def action_mask(
+        self,
+        call: SchedulableCall,
+        *,
+        constraints: SchedulingConstraints | None = None,
+    ) -> dict[str, bool]:
+        """Return the backward-compatible target-to-feasibility mapping."""
+
+        return self.action_mask_details(call, constraints=constraints).as_dict()
+
+    def eligible_snapshots(
+        self,
+        call: SchedulableCall,
+        *,
+        constraints: SchedulingConstraints | None = None,
+    ) -> list[ResourceSnapshot]:
+        details = self.action_mask_details(call, constraints=constraints)
+        return [
+            snapshot
+            for snapshot, is_feasible in zip(
+                self.snapshots_for(call),
+                details.values,
+                strict=True,
+            )
+            if is_feasible
+        ]
+
+    def snapshots_for(self, call: SchedulableCall) -> list[ResourceSnapshot]:
         if isinstance(call, LLMCall):
-            return [snapshot for snapshot in self.llm_snapshots() if mask[snapshot.profile.llm_id]]
+            return list(self.llm_snapshots())
         if isinstance(call, ToolCall):
-            return [
-                snapshot for snapshot in self.tool_snapshots() if mask[snapshot.profile.replica_id]
-            ]
+            return list(self.tool_snapshots())
         raise TypeError("call must be an LLMCall or ToolCall")
 
     def _require_llm_profile(self, llm_id: str) -> LLMInstanceProfile:
@@ -166,24 +213,65 @@ class ResourceRegistry:
             raise KeyError(f"replica_id {replica_id!r} is not registered") from exc
 
 
-def _can_run_llm(call: LLMCall, snapshot: LLMInstanceSnapshot) -> bool:
+def _llm_rejection_reasons(
+    call: LLMCall,
+    snapshot: LLMInstanceSnapshot,
+    constraints: SchedulingConstraints,
+) -> list[str]:
     profile = snapshot.profile
     state = snapshot.state
-    if not state.is_online or state.running_requests >= profile.max_concurrency:
-        return False
+    reasons: list[str] = []
+    if not state.is_online:
+        reasons.append("offline")
+    if state.running_requests >= profile.max_concurrency:
+        reasons.append("at_capacity")
     if call.model_name is not None and call.model_name != profile.model:
-        return False
+        reasons.append("model_mismatch")
     if call.context_length > profile.context_window_tokens:
-        return False
-    return set(call.required_capabilities).issubset(profile.capabilities)
+        reasons.append("context_window_exceeded")
+    missing_capabilities = sorted(set(call.required_capabilities) - set(profile.capabilities))
+    if missing_capabilities:
+        reasons.append(f"missing_capabilities:{','.join(missing_capabilities)}")
+    _append_experiment_constraint_reasons(call, profile, constraints, reasons)
+    return reasons
 
 
-def _can_run_tool(call: ToolCall, snapshot: ToolReplicaSnapshot) -> bool:
+def _tool_rejection_reasons(
+    call: ToolCall,
+    snapshot: ToolReplicaSnapshot,
+    constraints: SchedulingConstraints,
+) -> list[str]:
     profile = snapshot.profile
     state = snapshot.state
-    return (
-        state.is_online
-        and state.running_tasks < profile.max_concurrency
-        and call.tool_name == profile.tool_name
-        and set(call.required_capabilities).issubset(profile.capabilities)
-    )
+    reasons: list[str] = []
+    if not state.is_online:
+        reasons.append("offline")
+    if state.running_tasks >= profile.max_concurrency:
+        reasons.append("at_capacity")
+    if call.tool_name != profile.tool_name:
+        reasons.append("tool_name_mismatch")
+    missing_capabilities = sorted(set(call.required_capabilities) - set(profile.capabilities))
+    if missing_capabilities:
+        reasons.append(f"missing_capabilities:{','.join(missing_capabilities)}")
+    _append_experiment_constraint_reasons(call, profile, constraints, reasons)
+    return reasons
+
+
+def _append_experiment_constraint_reasons(
+    call: SchedulableCall,
+    profile: LLMInstanceProfile | ToolReplicaProfile,
+    constraints: SchedulingConstraints,
+    reasons: list[str],
+) -> None:
+    if (
+        constraints.allowed_node_ids is not None
+        and profile.node_id not in constraints.allowed_node_ids
+    ):
+        reasons.append("node_not_allowed")
+    if constraints.min_quality is None or reasons:
+        return
+    quality = profiled_quality(call, profile)
+    if quality < constraints.min_quality:
+        reasons.append(
+            f"quality_below_minimum:{quality:.6f}<{constraints.min_quality:.6f}"
+        )
