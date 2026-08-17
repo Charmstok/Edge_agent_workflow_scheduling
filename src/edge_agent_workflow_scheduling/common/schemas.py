@@ -309,6 +309,7 @@ class ScheduleDecision(SerializableSchema):
     candidate_target_ids: list[str] = field(default_factory=list)
     action_mask: list[bool] = field(default_factory=list)
     rejection_reasons: dict[str, list[str]] = field(default_factory=dict)
+    estimated_objectives: dict[str, float | int] | None = None
     decided_at: str = field(default_factory=_utc_now_iso)
 
     def __post_init__(self) -> None:
@@ -332,6 +333,8 @@ class ScheduleDecision(SerializableSchema):
         for target_id, reasons in self.rejection_reasons.items():
             _validate_non_empty(target_id, "rejection_reasons target ID")
             _validate_string_list(reasons, f"rejection_reasons.{target_id}")
+        if self.estimated_objectives is not None:
+            _validate_json_object(self.estimated_objectives, "estimated_objectives")
         unknown_rejections = set(self.rejection_reasons) - set(self.candidate_target_ids)
         if unknown_rejections:
             raise ValueError("rejection_reasons contains an unknown target")

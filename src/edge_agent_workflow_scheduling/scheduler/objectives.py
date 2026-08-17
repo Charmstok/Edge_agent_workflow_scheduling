@@ -91,14 +91,8 @@ def estimate_objectives(
     """Estimate all objectives for one feasible candidate assignment."""
 
     _validate_candidate_set(call, candidate, candidates)
-    _require_latency_profile(call, candidate)
-    latency_sec = candidate.estimate_finish_time_sec(call)
-    if not isfinite(latency_sec):
-        raise MissingObjectiveProfileError(
-            f"target {candidate.target_id!r} has no usable latency/throughput profile"
-        )
-
-    energy_joules = _estimate_energy(call, candidate)
+    latency_sec = estimate_latency_sec(call, candidate)
+    energy_joules = estimate_energy_joules(call, candidate)
     quality = profiled_quality(call, candidate.profile)
     deadline_miss = int(call.deadline_sec is not None and latency_sec > call.deadline_sec)
     load_imbalance = _projected_load_imbalance(candidate, candidates)
@@ -127,7 +121,12 @@ def normalized_cost(
     )
 
 
-def _estimate_energy(call: SchedulableCall, candidate: SchedulingCandidate) -> float:
+def estimate_energy_joules(
+    call: SchedulableCall,
+    candidate: SchedulingCandidate,
+) -> float:
+    """Estimate energy for policies that do not require the full objective vector."""
+
     profile = candidate.profile
     if isinstance(call, LLMCall) and isinstance(profile, LLMInstanceProfile):
         if "joules_per_token" not in profile.energy_profile:
@@ -143,6 +142,21 @@ def _estimate_energy(call: SchedulableCall, candidate: SchedulingCandidate) -> f
             )
         return profile.energy_profile["joules_per_call"]
     raise TypeError("candidate profile does not match call type")
+
+
+def estimate_latency_sec(
+    call: SchedulableCall,
+    candidate: SchedulingCandidate,
+) -> float:
+    """Estimate finish time and reject missing latency/throughput profiles."""
+
+    _require_latency_profile(call, candidate)
+    latency_sec = candidate.estimate_finish_time_sec(call)
+    if not isfinite(latency_sec):
+        raise MissingObjectiveProfileError(
+            f"target {candidate.target_id!r} has no usable latency/throughput profile"
+        )
+    return latency_sec
 
 
 def _require_latency_profile(

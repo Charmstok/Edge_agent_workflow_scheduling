@@ -9,7 +9,10 @@ from edge_agent_workflow_scheduling.resources import (
     ActionMask,
     ResourceRegistry,
     SchedulingConstraints,
+    resolve_scheduling_constraints,
 )
+from edge_agent_workflow_scheduling.scheduler.config import SchedulerPolicyConfig
+from edge_agent_workflow_scheduling.scheduler.objectives import estimate_objectives
 from edge_agent_workflow_scheduling.scheduler.policies import (
     DEFAULT_SCHEDULER_POLICY_REGISTRY,
     SchedulerPolicyRegistry,
@@ -45,12 +48,13 @@ class BaselineScheduler:
     policy_name: str
     policy_registry: SchedulerPolicyRegistry | None = None
     constraints: SchedulingConstraints = field(default_factory=SchedulingConstraints)
+    policy_config: SchedulerPolicyConfig = field(default_factory=SchedulerPolicyConfig)
     _policy: SchedulerPolicy = field(init=False)
 
     def __post_init__(self) -> None:
         registry = self.policy_registry or DEFAULT_SCHEDULER_POLICY_REGISTRY
         self.policy_registry = registry
-        self._policy = registry.create(self.policy_name)
+        self._policy = registry.create(self.policy_name, self.policy_config)
 
     def schedule(
         self,
@@ -60,15 +64,34 @@ class BaselineScheduler:
     ) -> ScheduleDecision:
         """Choose an execution target for an LLMCall or ToolCall."""
 
-        action_mask = resources.action_mask_details(call, constraints=self.constraints)
+        resolved_constraints = resolve_scheduling_constraints(call, self.constraints)
+        if (
+            getattr(self._policy, "requires_min_quality", False)
+            and resolved_constraints.min_quality is None
+        ):
+            raise ValueError(
+                "quality_constrained_earliest_finish_time requires min_quality"
+            )
+
+        action_mask = resources.action_mask_details(call, constraints=resolved_constraints)
         candidates = [
             candidate_from_snapshot(snapshot)
-            for snapshot in resources.eligible_snapshots(call, constraints=self.constraints)
+            for snapshot in resources.eligible_snapshots(
+                call,
+                constraints=resolved_constraints,
+            )
         ]
         if not candidates:
             raise NoFeasibleTargetError(call_kind_for(call), action_mask)
 
         selection = self._policy.select(call, candidates)
+        estimated_objectives = selection.estimated_objectives
+        if self.policy_config.record_objectives and estimated_objectives is None:
+            estimated_objectives = estimate_objectives(
+                call,
+                selection.candidate,
+                candidates,
+            ).to_dict()
         return ScheduleDecision(
             call_id=call_id_for(call),
             call_kind=call_kind_for(call),
@@ -82,4 +105,19 @@ class BaselineScheduler:
                 target_id: list(reasons)
                 for target_id, reasons in action_mask.reasons_by_target().items()
             },
+            estimated_objectives=estimated_objectives,
         )
+
+    def manifest_parameters(self) -> dict[str, object]:
+        """Return public scheduler parameters needed to reproduce a decision."""
+
+        parameters = self.policy_config.to_dict()
+        parameters["constraints"] = {
+            "min_quality": self.constraints.min_quality,
+            "allowed_node_ids": (
+                sorted(self.constraints.allowed_node_ids)
+                if self.constraints.allowed_node_ids is not None
+                else None
+            ),
+        }
+        return parameters

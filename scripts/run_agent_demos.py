@@ -412,7 +412,6 @@ def _build_manifest(
         code_version=os.getenv("GIT_COMMIT", "working-tree"),
         mode="live",
         sampling_parameters=deepcopy(sampling_parameters),
-        scheduler_parameters={},
         profile_seed=PROFILE_SEED,
     )
 

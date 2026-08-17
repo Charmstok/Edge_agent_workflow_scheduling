@@ -58,6 +58,7 @@ class PolicySelection:
     candidate: SchedulingCandidate
     score: float | None = None
     reason: str | None = None
+    estimated_objectives: dict[str, float | int] | None = None
 
 
 class SchedulerPolicy(Protocol):

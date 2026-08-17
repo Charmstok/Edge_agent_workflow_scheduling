@@ -158,8 +158,16 @@ def build_experiment_manifest(
             "timeout_sec": runner.timeout_sec,
         },
         "scheduler_name": runner.scheduler.policy_name,
-        "scheduler_parameters": scheduler_parameters or {},
-        "scheduler_seed": scheduler_seed,
+        "scheduler_parameters": (
+            scheduler_parameters
+            if scheduler_parameters is not None
+            else runner.scheduler.manifest_parameters()
+        ),
+        "scheduler_seed": (
+            scheduler_seed
+            if scheduler_seed is not None
+            else runner.scheduler.policy_config.random_seed
+        ),
         "llm_profile_version": llm_profile_version,
         "tool_profile_version": tool_profile_version,
         "resource_profiles": _resource_profile_snapshot(runner.resources),
