@@ -365,6 +365,11 @@ def _build_call_trace(
         "success": record.result.success,
         "timeout": record.result.error_code == "timeout",
         "result_metadata": result_metadata,
+        "estimated_objectives": (
+            sanitize_for_trace(record.decision.estimated_objectives)
+            if record.decision.estimated_objectives is not None
+            else None
+        ),
         "error_code": record.result.error_code,
         "error_message": record.result.error_message,
         "created_at": record.call.created_at,

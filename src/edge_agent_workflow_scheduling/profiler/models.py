@@ -113,6 +113,7 @@ class CallTrace:
     function_call_id: str | None = None
     raw_response_items: list[dict[str, Any]] = field(default_factory=list)
     function_call_output: dict[str, Any] | None = None
+    estimated_objectives: dict[str, Any] | None = None
     result_metadata: dict[str, Any] = field(default_factory=dict)
     error_code: str | None = None
     error_message: str | None = None
@@ -143,6 +144,8 @@ class CallTrace:
         _json_value(self.raw_response_items, "raw_response_items")
         if self.function_call_output is not None:
             _json_object(self.function_call_output, "function_call_output")
+        if self.estimated_objectives is not None:
+            _json_object(self.estimated_objectives, "estimated_objectives")
         _json_object(self.result_metadata, "result_metadata")
         for value, name in (
             (self.queue_wait_time_sec, "queue_wait_time_sec"),

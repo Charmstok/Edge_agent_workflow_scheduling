@@ -1,5 +1,14 @@
 """Profiling and trace logging components."""
 
+from edge_agent_workflow_scheduling.profiler.evaluator import (
+    AgentRunEvaluation,
+    CallEvaluation,
+    ExperimentEvaluation,
+    evaluate_trace_bundle,
+    evaluate_trace_path,
+    evaluate_traces,
+    write_evaluation_artifacts,
+)
 from edge_agent_workflow_scheduling.profiler.models import (
     AgentRunTrace,
     CallTrace,
@@ -31,8 +40,11 @@ from edge_agent_workflow_scheduling.profiler.trace import (
 
 __all__ = [
     "AgentRunTrace",
+    "AgentRunEvaluation",
     "CallTrace",
+    "CallEvaluation",
     "ExperimentManifest",
+    "ExperimentEvaluation",
     "JsonlTraceLogger",
     "ReplayDecision",
     "ReplayResult",
@@ -50,4 +62,8 @@ __all__ = [
     "replay_calls",
     "resources_from_manifest",
     "sanitize_for_trace",
+    "evaluate_trace_bundle",
+    "evaluate_trace_path",
+    "evaluate_traces",
+    "write_evaluation_artifacts",
 ]
