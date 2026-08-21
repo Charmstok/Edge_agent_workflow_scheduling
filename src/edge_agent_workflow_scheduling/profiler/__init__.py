@@ -1,5 +1,11 @@
 """Profiling and trace logging components."""
 
+from edge_agent_workflow_scheduling.profiler.baseline_experiment import (
+    DEFAULT_BASELINE_POLICIES,
+    BaselineExperimentResult,
+    BaselineRunResult,
+    run_baseline_experiment,
+)
 from edge_agent_workflow_scheduling.profiler.evaluator import (
     AgentRunEvaluation,
     CallEvaluation,
@@ -40,6 +46,8 @@ from edge_agent_workflow_scheduling.profiler.trace import (
 
 __all__ = [
     "AgentRunTrace",
+    "BaselineExperimentResult",
+    "BaselineRunResult",
     "AgentRunEvaluation",
     "CallTrace",
     "CallEvaluation",
@@ -66,4 +74,6 @@ __all__ = [
     "evaluate_trace_path",
     "evaluate_traces",
     "write_evaluation_artifacts",
+    "DEFAULT_BASELINE_POLICIES",
+    "run_baseline_experiment",
 ]
