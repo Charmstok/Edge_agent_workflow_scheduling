@@ -39,6 +39,11 @@ def main() -> None:
     parser.add_argument("--profile-jitter-ratio", type=float, default=0.0)
     parser.add_argument("--profile-failure-rate", type=float, default=0.0)
     parser.add_argument(
+        "--min-quality",
+        type=float,
+        help="Optional hard threshold required by quality-constrained EFT",
+    )
+    parser.add_argument(
         "--resource-profile",
         type=Path,
         help="Optional JSON file containing resource_profiles or the resource profile mapping",
@@ -77,6 +82,7 @@ def main() -> None:
         ),
         objective_weights=weights,
         objective_normalization=normalization,
+        min_quality=args.min_quality,
         experiment_id=args.experiment_id,
     )
     print(

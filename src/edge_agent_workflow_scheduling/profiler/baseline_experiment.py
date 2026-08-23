@@ -32,7 +32,7 @@ from edge_agent_workflow_scheduling.profiler.replay import (
     resources_from_manifest,
 )
 from edge_agent_workflow_scheduling.profiler.trace import TraceBundleStore
-from edge_agent_workflow_scheduling.resources import ResourceRegistry
+from edge_agent_workflow_scheduling.resources import ResourceRegistry, SchedulingConstraints
 from edge_agent_workflow_scheduling.scheduler import BaselineScheduler, SchedulerPolicyConfig
 from edge_agent_workflow_scheduling.scheduler.objectives import (
     ObjectiveNormalization,
@@ -110,6 +110,7 @@ def run_baseline_experiment(
     objective_weights: ObjectiveWeights | Mapping[str, float] | None = None,
     objective_normalization: ObjectiveNormalization | Mapping[str, float] | None = None,
     resource_profiles: Mapping[str, Any] | None = None,
+    min_quality: float | None = None,
     experiment_id: str | None = None,
 ) -> BaselineExperimentResult:
     """Run all requested policies against one immutable replay call stream.
@@ -161,6 +162,7 @@ def run_baseline_experiment(
             "objective_weights": _json_config(weights),
             "objective_normalization": _json_config(normalization),
             "resource_profile_version": profile_version,
+            "min_quality": min_quality,
         },
     )
 
@@ -177,6 +179,7 @@ def run_baseline_experiment(
                 profile_failure_rate=profile_failure_rate,
                 objective_weights=weights,
                 objective_normalization=normalization,
+                min_quality=min_quality,
                 experiment_id=experiment_name,
                 output_dir=run_dir,
             )
@@ -205,12 +208,14 @@ def _run_one_policy(
     profile_failure_rate: float,
     objective_weights: ObjectiveWeights | None,
     objective_normalization: ObjectiveNormalization | None,
+    min_quality: float | None,
     experiment_id: str,
     output_dir: Path,
 ) -> BaselineRunResult:
     resources = resources_from_manifest(source_trace)
     scheduler = BaselineScheduler(
         policy_name,
+        constraints=SchedulingConstraints(min_quality=min_quality),
         policy_config=SchedulerPolicyConfig(
             random_seed=seed,
             record_objectives=policy_name == "weighted_objective",
@@ -266,6 +271,7 @@ def _run_one_policy(
         profile_seed=profile_seed,
         objective_weights=objective_weights,
         objective_normalization=objective_normalization,
+        min_quality=min_quality,
     )
     generated_trace = replace(generated_trace, manifest=manifest)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -441,14 +447,16 @@ def _build_policy_manifest(
     profile_seed: int,
     objective_weights: ObjectiveWeights | None,
     objective_normalization: ObjectiveNormalization | None,
+    min_quality: float | None,
 ) -> ExperimentManifest:
     scheduler_parameters = {
         "random_seed": seed,
         "profile_seed": profile_seed,
-        "record_objectives": True,
+        "record_objectives": policy_name == "weighted_objective",
         "execution_mode": "profile",
         "objective_weights": _json_config(objective_weights),
         "objective_normalization": _json_config(objective_normalization),
+        "constraints": {"min_quality": min_quality, "allowed_node_ids": None},
     }
     return replace(
         source,

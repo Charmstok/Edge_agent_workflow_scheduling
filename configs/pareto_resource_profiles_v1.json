@@ -1,0 +1,133 @@
+{
+  "version": "pareto-profile-v1",
+  "resource_profiles": {
+    "llm_instances": [
+      {
+        "profile": {
+          "llm_id": "offline-llm-profile",
+          "provider": "profile",
+          "model": "research-fast-quality",
+          "node_id": "edge-fast",
+          "platform": "profile",
+          "executor_type": "profile",
+          "base_url": null,
+          "model_size_b": 7.0,
+          "capabilities": ["function_calling"],
+          "context_window_tokens": 4096,
+          "quality_profile": {"default": 0.95},
+          "token_profile": {"tokens_per_sec": 120.0},
+          "energy_profile": {"joules_per_token": 0.01},
+          "max_concurrency": 1,
+          "deployment_config": {},
+          "secret_env_vars": [],
+          "metadata": {"profile_version": "pareto-profile-v1"}
+        },
+        "state": {
+          "llm_id": "offline-llm-profile",
+          "queue_len": 0,
+          "running_requests": 0,
+          "compute_util": 0.0,
+          "memory_util": 0.0,
+          "tokens_per_sec": 0.0,
+          "avg_latency_sec": 0.0,
+          "is_online": true,
+          "updated_at": "2026-08-20T00:00:00+00:00"
+        }
+      },
+      {
+        "profile": {
+          "llm_id": "offline-llm-scripted",
+          "provider": "profile",
+          "model": "research-efficient",
+          "node_id": "edge-efficient",
+          "platform": "profile",
+          "executor_type": "profile",
+          "base_url": null,
+          "model_size_b": 3.0,
+          "capabilities": ["function_calling"],
+          "context_window_tokens": 4096,
+          "quality_profile": {"default": 0.7},
+          "token_profile": {"tokens_per_sec": 60.0},
+          "energy_profile": {"joules_per_token": 0.001},
+          "max_concurrency": 1,
+          "deployment_config": {},
+          "secret_env_vars": [],
+          "metadata": {"profile_version": "pareto-profile-v1"}
+        },
+        "state": {
+          "llm_id": "offline-llm-scripted",
+          "queue_len": 0,
+          "running_requests": 0,
+          "compute_util": 0.0,
+          "memory_util": 0.0,
+          "tokens_per_sec": 0.0,
+          "avg_latency_sec": 0.0,
+          "is_online": true,
+          "updated_at": "2026-08-20T00:00:00+00:00"
+        }
+      }
+    ],
+    "tool_replicas": [
+      {
+        "profile": {
+          "replica_id": "image-profile",
+          "tool_name": "image_preprocess",
+          "node_id": "edge-fast",
+          "platform": "profile",
+          "implementation_version": "equivalent-v1",
+          "executor_type": "profile",
+          "capabilities": [],
+          "latency_profile": {"execution_time_sec": 0.04},
+          "energy_profile": {"joules_per_call": 1.5},
+          "quality_profile": {"default": 0.95},
+          "max_concurrency": 1,
+          "deployment_config": {},
+          "secret_env_vars": [],
+          "metadata": {"profile_version": "pareto-profile-v1"}
+        },
+        "state": {
+          "replica_id": "image-profile",
+          "queue_len": 0,
+          "running_tasks": 0,
+          "cpu_util": 0.0,
+          "memory_util": 0.0,
+          "network_latency_ms": 0.0,
+          "avg_execution_time_sec": 0.0,
+          "recent_failure_rate": 0.0,
+          "is_online": true,
+          "updated_at": "2026-08-20T00:00:00+00:00"
+        }
+      },
+      {
+        "profile": {
+          "replica_id": "image-real",
+          "tool_name": "image_preprocess",
+          "node_id": "edge-efficient",
+          "platform": "profile",
+          "implementation_version": "equivalent-v1",
+          "executor_type": "profile",
+          "capabilities": [],
+          "latency_profile": {"execution_time_sec": 0.16},
+          "energy_profile": {"joules_per_call": 0.2},
+          "quality_profile": {"default": 0.7},
+          "max_concurrency": 1,
+          "deployment_config": {},
+          "secret_env_vars": [],
+          "metadata": {"profile_version": "pareto-profile-v1"}
+        },
+        "state": {
+          "replica_id": "image-real",
+          "queue_len": 0,
+          "running_tasks": 0,
+          "cpu_util": 0.0,
+          "memory_util": 0.0,
+          "network_latency_ms": 0.0,
+          "avg_execution_time_sec": 0.0,
+          "recent_failure_rate": 0.0,
+          "is_online": true,
+          "updated_at": "2026-08-20T00:00:00+00:00"
+        }
+      }
+    ]
+  }
+}

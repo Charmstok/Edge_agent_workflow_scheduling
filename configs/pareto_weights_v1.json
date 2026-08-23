@@ -1,0 +1,95 @@
+{
+  "version": "pareto-weights-v1",
+  "configurations": [
+    {
+      "name": "latency_only",
+      "weights": {
+        "latency": 1.0,
+        "energy": 0.0,
+        "deadline_miss": 0.0,
+        "load_imbalance": 0.0,
+        "quality": 0.0
+      }
+    },
+    {
+      "name": "energy_only",
+      "weights": {
+        "latency": 0.0,
+        "energy": 1.0,
+        "deadline_miss": 0.0,
+        "load_imbalance": 0.0,
+        "quality": 0.0
+      }
+    },
+    {
+      "name": "deadline_only",
+      "weights": {
+        "latency": 0.0,
+        "energy": 0.0,
+        "deadline_miss": 1.0,
+        "load_imbalance": 0.0,
+        "quality": 0.0
+      }
+    },
+    {
+      "name": "load_imbalance_only",
+      "weights": {
+        "latency": 0.0,
+        "energy": 0.0,
+        "deadline_miss": 0.0,
+        "load_imbalance": 1.0,
+        "quality": 0.0
+      }
+    },
+    {
+      "name": "quality_only",
+      "weights": {
+        "latency": 0.0,
+        "energy": 0.0,
+        "deadline_miss": 0.0,
+        "load_imbalance": 0.0,
+        "quality": 1.0
+      }
+    },
+    {
+      "name": "equal",
+      "weights": {
+        "latency": 0.2,
+        "energy": 0.2,
+        "deadline_miss": 0.2,
+        "load_imbalance": 0.2,
+        "quality": 0.2
+      }
+    },
+    {
+      "name": "latency_quality",
+      "weights": {
+        "latency": 0.5,
+        "energy": 0.0,
+        "deadline_miss": 0.0,
+        "load_imbalance": 0.0,
+        "quality": 0.5
+      }
+    },
+    {
+      "name": "latency_energy",
+      "weights": {
+        "latency": 0.5,
+        "energy": 0.5,
+        "deadline_miss": 0.0,
+        "load_imbalance": 0.0,
+        "quality": 0.0
+      }
+    },
+    {
+      "name": "quality_energy",
+      "weights": {
+        "latency": 0.0,
+        "energy": 0.5,
+        "deadline_miss": 0.0,
+        "load_imbalance": 0.0,
+        "quality": 0.5
+      }
+    }
+  ]
+}

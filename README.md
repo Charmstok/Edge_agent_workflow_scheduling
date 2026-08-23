@@ -113,6 +113,15 @@ Run static checks:
 ruff check .
 ```
 
+Run the versioned Milestone 3 Pareto experiment on the fixed offline replay trace:
+
+```bash
+python scripts/run_pareto.py data/milestone_2_8/offline/trace.json
+```
+
+This scans representative objective weights, runs the reference policies, and
+writes traceable CSV/JSON points under `data/milestone_3_7/`.
+
 ## Layout
 
 ```text
@@ -129,5 +138,7 @@ src/edge_agent_workflow_scheduling/
 
 scripts/
 ├── run_agent_demos.py
-└── run_first_demo.py
+├── run_baselines.py
+├── run_first_demo.py
+└── run_pareto.py
 ```
