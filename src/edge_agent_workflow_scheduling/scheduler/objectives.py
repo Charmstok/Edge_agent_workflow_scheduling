@@ -10,6 +10,7 @@ from edge_agent_workflow_scheduling.common import LLMCall, SchedulableCall, Tool
 from edge_agent_workflow_scheduling.resources import (
     LLMInstanceProfile,
     LLMInstanceState,
+    MissingQualityProfileError,
     ToolReplicaProfile,
     ToolReplicaState,
     profiled_quality,
@@ -103,6 +104,38 @@ def estimate_objectives(
         deadline_miss=deadline_miss,
         load_imbalance=load_imbalance,
     )
+
+
+def estimate_objectives_dict(
+    call: SchedulableCall,
+    candidate: SchedulingCandidate,
+    candidates: list[SchedulingCandidate],
+    *,
+    allow_missing_optional_profiles: bool = False,
+) -> dict[str, float | int | None]:
+    """Return a trace-friendly estimate, optionally preserving unknown fields."""
+
+    _validate_candidate_set(call, candidate, candidates)
+    latency_sec = estimate_latency_sec(call, candidate)
+    try:
+        energy_joules: float | None = estimate_energy_joules(call, candidate)
+    except MissingObjectiveProfileError:
+        if not allow_missing_optional_profiles:
+            raise
+        energy_joules = None
+    try:
+        quality: float | None = profiled_quality(call, candidate.profile)
+    except MissingQualityProfileError:
+        if not allow_missing_optional_profiles:
+            raise
+        quality = None
+    return {
+        "latency_sec": latency_sec,
+        "energy_joules": energy_joules,
+        "quality": quality,
+        "deadline_miss": int(call.deadline_sec is not None and latency_sec > call.deadline_sec),
+        "load_imbalance": _projected_load_imbalance(candidate, candidates),
+    }
 
 
 def normalized_cost(

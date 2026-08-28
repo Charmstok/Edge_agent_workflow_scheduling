@@ -6,6 +6,7 @@ import csv
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta
@@ -44,7 +45,24 @@ DEFAULT_BASELINE_POLICIES = (
     "round_robin",
     "least_queue",
     "earliest_finish_time",
+    "quality_aware",
+    "energy_aware",
+    "weighted_objective",
+    "quality_constrained_earliest_finish_time",
 )
+
+DEFAULT_OBJECTIVE_WEIGHTS = ObjectiveWeights(
+    latency=0.2,
+    energy=0.2,
+    deadline_miss=0.2,
+    load_imbalance=0.2,
+    quality=0.2,
+)
+DEFAULT_OBJECTIVE_NORMALIZATION = ObjectiveNormalization(
+    latency_ref_sec=1.0,
+    energy_ref_joules=1.0,
+)
+DEFAULT_MIN_QUALITY = 0.8
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,12 +139,19 @@ def run_baseline_experiment(
     """
 
     source_trace = _load_trace(trace)
-    policy_names = _validate_names(policies, "policies")
+    requested_policy_names = _validate_names(policies, "policies")
     run_seeds = _validate_seeds(seeds)
     if profile_seed < 0:
         raise ValueError("profile_seed must be non-negative")
     weights = _coerce_weights(objective_weights)
     normalization = _coerce_normalization(objective_normalization)
+    if (
+        tuple(requested_policy_names) == DEFAULT_BASELINE_POLICIES
+        and weights is None
+        and normalization is None
+    ):
+        weights = DEFAULT_OBJECTIVE_WEIGHTS
+        normalization = DEFAULT_OBJECTIVE_NORMALIZATION
     if (weights is None) != (normalization is None):
         raise ValueError(
             "objective_weights and objective_normalization must be configured together"
@@ -135,6 +160,13 @@ def run_baseline_experiment(
 
     experiment_name = experiment_id or f"{source_trace.manifest.experiment_id}-baseline"
     profile_snapshot = deepcopy(resource_profiles or source_trace.manifest.resource_profiles)
+    skipped_policies: dict[str, str] = {}
+    policy_names = requested_policy_names
+    if tuple(requested_policy_names) == DEFAULT_BASELINE_POLICIES:
+        policy_names, skipped_policies = _policies_supported_by_profiles(
+            requested_policy_names,
+            profile_snapshot,
+        )
     base_trace = _trace_with_resource_profiles(source_trace, profile_snapshot)
     workload_fingerprint = content_digest([call.call_digest for call in base_trace.calls])
     profile_version = _profile_version(profile_snapshot)
@@ -155,6 +187,8 @@ def run_baseline_experiment(
             "source_run_id": base_trace.run.run_id,
             "source_trace_fingerprint": workload_fingerprint,
             "policies": list(policy_names),
+            "requested_policies": list(requested_policy_names),
+            "skipped_policies": skipped_policies,
             "seeds": list(run_seeds),
             "profile_seed": profile_seed,
             "profile_jitter_ratio": profile_jitter_ratio,
@@ -162,13 +196,24 @@ def run_baseline_experiment(
             "objective_weights": _json_config(weights),
             "objective_normalization": _json_config(normalization),
             "resource_profile_version": profile_version,
-            "min_quality": min_quality,
+            "min_quality": (
+                DEFAULT_MIN_QUALITY
+                if min_quality is None
+                and "quality_constrained_earliest_finish_time" in policy_names
+                else min_quality
+            ),
         },
     )
 
     runs: list[BaselineRunResult] = []
     for policy_name in policy_names:
         for seed in run_seeds:
+            policy_min_quality = (
+                DEFAULT_MIN_QUALITY
+                if min_quality is None
+                and policy_name == "quality_constrained_earliest_finish_time"
+                else min_quality
+            )
             run_dir = experiment_dir / f"{_slug(policy_name)}-seed-{seed}"
             result = _run_one_policy(
                 base_trace,
@@ -179,7 +224,7 @@ def run_baseline_experiment(
                 profile_failure_rate=profile_failure_rate,
                 objective_weights=weights,
                 objective_normalization=normalization,
-                min_quality=min_quality,
+                min_quality=policy_min_quality,
                 experiment_id=experiment_name,
                 output_dir=run_dir,
             )
@@ -218,7 +263,7 @@ def _run_one_policy(
         constraints=SchedulingConstraints(min_quality=min_quality),
         policy_config=SchedulerPolicyConfig(
             random_seed=seed,
-            record_objectives=policy_name == "weighted_objective",
+            record_objectives=True,
             objective_weights=objective_weights,
             objective_normalization=objective_normalization,
         ),
@@ -233,34 +278,34 @@ def _run_one_policy(
     decisions: list[dict[str, Any]] = []
     decision_times: list[float] = []
     elapsed_profile_sec = 0.0
-    for source_call in source_trace.calls:
-        call = reconstruct_call(source_call)
-        started = perf_counter()
-        decision = scheduler.schedule(call, resources=resources)
-        decision_time_sec = perf_counter() - started
-        decision_times.append(decision_time_sec)
-        decisions.append({**decision.to_dict(), "decision_time_sec": decision_time_sec})
-        result = profile_pool.execute(call, decision.selected_target, resources)
-        elapsed_profile_sec += (
-            result.queue_wait_time_sec
-            + result.input_transfer_time_sec
-            + (
-                result.inference_time_sec
-                if isinstance(call, LLMCall)
-                else result.execution_time_sec
+    for source_batch in _call_batches(source_trace.calls):
+        assignments: list[tuple[CallTrace, LLMCall | ToolCall, Any]] = []
+        for source_call in source_batch:
+            call = reconstruct_call(source_call)
+            started = perf_counter()
+            decision = scheduler.schedule(call, resources=resources)
+            decision_time_sec = perf_counter() - started
+            decision_times.append(decision_time_sec)
+            decisions.append({**decision.to_dict(), "decision_time_sec": decision_time_sec})
+            _enqueue_resource_state(resources, call, decision.selected_target)
+            assignments.append((source_call, call, decision))
+
+        results = _execute_batch(profile_pool, assignments, resources)
+        batch_duration = 0.0
+        for (source_call, call, decision), result in zip(assignments, results, strict=True):
+            call_duration = _result_duration(call, result)
+            batch_duration = max(batch_duration, call_duration)
+            calls.append(
+                replace(
+                    _call_trace_from_profile(source_call, call, decision, result),
+                    finished_at=(
+                        datetime.fromisoformat(source_trace.run.started_at)
+                        + timedelta(seconds=elapsed_profile_sec + call_duration)
+                    ).isoformat(),
+                )
             )
-            + result.output_transfer_time_sec
-        )
-        calls.append(
-            replace(
-                _call_trace_from_profile(source_call, call, decision, result),
-                finished_at=(
-                    datetime.fromisoformat(source_trace.run.started_at)
-                    + timedelta(seconds=elapsed_profile_sec)
-                ).isoformat(),
-            )
-        )
-        _update_resource_state(resources, call, decision.selected_target, result)
+            _update_resource_state(resources, call, decision.selected_target, result)
+        elapsed_profile_sec += batch_duration
 
     generated_trace = _build_trace_bundle(source_trace, calls, policy_name)
     manifest = _build_policy_manifest(
@@ -412,9 +457,12 @@ def _build_trace_bundle(
     calls: list[CallTrace],
     policy_name: str,
 ) -> TraceBundle:
-    total_latency = sum(call.total_latency_sec for call in calls)
     started = datetime.fromisoformat(source.run.started_at)
-    finished = started + timedelta(seconds=total_latency)
+    finish_times = [datetime.fromisoformat(call.finished_at) for call in calls]
+    finished = max(finish_times, default=started)
+    total_latency = max((finished - started).total_seconds(), 0.0)
+    if not calls:
+        total_latency = 0.0
     success = all(call.success for call in calls)
     status = "completed" if success else "failed"
     raw_items = [item for call in calls for item in call.raw_response_items]
@@ -452,7 +500,7 @@ def _build_policy_manifest(
     scheduler_parameters = {
         "random_seed": seed,
         "profile_seed": profile_seed,
-        "record_objectives": policy_name == "weighted_objective",
+        "record_objectives": True,
         "execution_mode": "profile",
         "objective_weights": _json_config(objective_weights),
         "objective_normalization": _json_config(objective_normalization),
@@ -502,6 +550,93 @@ def _update_resource_state(
         )
 
 
+def _call_batches(calls: Sequence[CallTrace]) -> list[list[CallTrace]]:
+    """Group contiguous same-turn calls that can arrive in one scheduling round."""
+
+    batches: list[list[CallTrace]] = []
+    for call in calls:
+        if (
+            batches
+            and batches[-1][0].turn_index == call.turn_index
+            and batches[-1][0].call_kind == call.call_kind
+        ):
+            batches[-1].append(call)
+        else:
+            batches.append([call])
+    return batches
+
+
+def _enqueue_resource_state(
+    resources: ResourceRegistry,
+    call: LLMCall | ToolCall,
+    target_id: str,
+) -> None:
+    """Reserve a queued slot while a same-round batch is being assigned."""
+
+    if isinstance(call, LLMCall):
+        snapshot = resources.llm_snapshot(target_id)
+        resources.update_llm_state(
+            replace(
+                snapshot.state,
+                queue_len=snapshot.state.queue_len + 1,
+            )
+        )
+    else:
+        snapshot = resources.tool_snapshot(target_id)
+        resources.update_tool_state(
+            replace(
+                snapshot.state,
+                queue_len=snapshot.state.queue_len + 1,
+            )
+        )
+
+
+def _execute_batch(
+    profile_pool: _ProfileExecutorPool,
+    assignments: Sequence[tuple[CallTrace, LLMCall | ToolCall, Any]],
+    resources: ResourceRegistry,
+) -> list[Any]:
+    """Execute one scheduling batch concurrently, preserving input order."""
+
+    if len(assignments) == 1:
+        _, call, decision = assignments[0]
+        return [profile_pool.execute(call, decision.selected_target, resources)]
+    grouped: dict[str, list[tuple[int, LLMCall | ToolCall]]] = {}
+    for index, (_, call, decision) in enumerate(assignments):
+        grouped.setdefault(decision.selected_target, []).append((index, call))
+
+    def execute_target(group: list[tuple[int, LLMCall | ToolCall]]) -> list[tuple[int, Any]]:
+        results: list[tuple[int, Any]] = []
+        queued_duration = 0.0
+        for index, call in group:
+            result = profile_pool.execute(call, assignments[index][2].selected_target, resources)
+            if queued_duration:
+                result = replace(
+                    result,
+                    queue_wait_time_sec=result.queue_wait_time_sec + queued_duration,
+                )
+            results.append((index, result))
+            queued_duration += _result_duration(call, result)
+        return results
+
+    completed: list[Any | None] = [None] * len(assignments)
+    with ThreadPoolExecutor(max_workers=len(grouped)) as pool:
+        futures = [pool.submit(execute_target, group) for group in grouped.values()]
+        for future in futures:
+            for index, result in future.result():
+                completed[index] = result
+    return [result for result in completed if result is not None]
+
+
+def _result_duration(call: LLMCall | ToolCall, result: Any) -> float:
+    return (
+        result.queue_wait_time_sec
+        + result.input_transfer_time_sec
+        + (result.inference_time_sec if isinstance(call, LLMCall) else result.execution_time_sec)
+        + result.output_transfer_time_sec
+    )
+
+
 def _write_merged_csv(path: Path, runs: Sequence[BaselineRunResult]) -> None:
     rows: list[dict[str, Any]] = []
     for run in runs:
@@ -546,6 +681,53 @@ def _trace_with_resource_profiles(trace: TraceBundle, profiles: Mapping[str, Any
             resource_profiles=deepcopy(dict(profiles)),
         ),
     )
+
+
+def _policies_supported_by_profiles(
+    policies: Sequence[str],
+    profiles: Mapping[str, Any],
+) -> tuple[tuple[str, ...], dict[str, str]]:
+    """Keep the default command usable with older traces lacking optional profiles."""
+
+    resources = [
+        item.get("profile")
+        for group in ("llm_instances", "tool_replicas")
+        for item in profiles.get(group, [])
+        if isinstance(item, Mapping) and isinstance(item.get("profile"), Mapping)
+    ]
+    missing_energy = any(
+        not isinstance(profile.get("energy_profile"), Mapping)
+        or (
+            "joules_per_token" not in profile["energy_profile"]
+            and "joules_per_call" not in profile["energy_profile"]
+        )
+        for profile in resources
+    )
+    missing_quality = any(
+        profile.get("llm_id") is not None
+        and (
+            not isinstance(profile.get("quality_profile"), Mapping)
+            or "default" not in profile["quality_profile"]
+        )
+        for profile in resources
+    )
+    skipped: dict[str, str] = {}
+    supported: list[str] = []
+    for policy in policies:
+        reason = None
+        if policy in {"energy_aware", "weighted_objective"} and missing_energy:
+            reason = "required energy profile is missing"
+        elif policy in {
+            "quality_aware",
+            "quality_constrained_earliest_finish_time",
+            "weighted_objective",
+        } and missing_quality:
+            reason = "required quality profile is missing"
+        if reason is None:
+            supported.append(policy)
+        else:
+            skipped[policy] = reason
+    return tuple(supported), skipped
 
 
 def _coerce_weights(

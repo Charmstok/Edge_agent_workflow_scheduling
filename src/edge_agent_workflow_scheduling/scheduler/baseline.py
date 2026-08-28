@@ -12,7 +12,7 @@ from edge_agent_workflow_scheduling.resources import (
     resolve_scheduling_constraints,
 )
 from edge_agent_workflow_scheduling.scheduler.config import SchedulerPolicyConfig
-from edge_agent_workflow_scheduling.scheduler.objectives import estimate_objectives
+from edge_agent_workflow_scheduling.scheduler.objectives import estimate_objectives_dict
 from edge_agent_workflow_scheduling.scheduler.policies import (
     DEFAULT_SCHEDULER_POLICY_REGISTRY,
     SchedulerPolicyRegistry,
@@ -87,11 +87,17 @@ class BaselineScheduler:
         selection = self._policy.select(call, candidates)
         estimated_objectives = selection.estimated_objectives
         if self.policy_config.record_objectives and estimated_objectives is None:
-            estimated_objectives = estimate_objectives(
+            estimated_objectives = estimate_objectives_dict(
                 call,
                 selection.candidate,
                 candidates,
-            ).to_dict()
+                allow_missing_optional_profiles=self.policy_name
+                not in {
+                    "quality_aware",
+                    "weighted_objective",
+                    "quality_constrained_earliest_finish_time",
+                },
+            )
         return ScheduleDecision(
             call_id=call_id_for(call),
             call_kind=call_kind_for(call),
