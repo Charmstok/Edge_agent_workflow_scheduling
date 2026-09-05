@@ -12,6 +12,12 @@ from edge_agent_workflow_scheduling.common.schemas import (
     ToolResult,
     TraceRecord,
 )
+from edge_agent_workflow_scheduling.common.workload import (
+    AgentConfig,
+    ArrivalPlan,
+    TaskSample,
+    WorkloadConfig,
+)
 
 __all__ = [
     "AgentRun",
@@ -24,4 +30,8 @@ __all__ = [
     "ToolCall",
     "ToolResult",
     "TraceRecord",
+    "AgentConfig",
+    "ArrivalPlan",
+    "TaskSample",
+    "WorkloadConfig",
 ]

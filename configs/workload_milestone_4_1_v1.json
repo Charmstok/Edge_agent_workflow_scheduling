@@ -1,0 +1,814 @@
+{
+  "schema_version": 1,
+  "workload_id": "document-agents",
+  "workload_version": "v1",
+  "dataset_id": "synthetic-documents-v1",
+  "input_seed": 401,
+  "agent_count": 4,
+  "agent": {
+    "system_prompt": "Solve the task from its input artifacts. Choose tools dynamically as needed, without a prescribed call sequence. Return one JSON object with the requested fields; represent money as two-decimal strings. Do not invent missing facts.",
+    "system_prompt_version": "document-agent-v1",
+    "user_template": "{goal}\nTask: {task_id} ({task_type}).\nInput: {input_json}\nArtifacts relative to the workload config: {artifacts_json}",
+    "user_template_version": "document-task-v1",
+    "tool_schemas": [
+      {
+        "type": "function",
+        "name": "image_preprocess",
+        "description": "Apply configurable preprocessing operations to a local image.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input_uri": {
+              "type": "string",
+              "minLength": 1
+            },
+            "operations": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string",
+                "enum": ["grayscale", "resize", "blur", "threshold", "edge_detect"]
+              },
+              "minItems": 1
+            },
+            "operation_repeat": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            }
+          },
+          "required": [
+            "input_uri",
+            "operations",
+            "operation_repeat"
+          ],
+          "additionalProperties": false
+        },
+        "strict": true
+      },
+      {
+        "type": "function",
+        "name": "ocr",
+        "description": "Extract text from a local invoice image. Planned Milestone 4.2 contract.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input_uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input_uri"
+          ],
+          "additionalProperties": false
+        },
+        "strict": true
+      },
+      {
+        "type": "function",
+        "name": "pdf_parse",
+        "description": "Extract all page text from a local PDF. Planned Milestone 4.2 contract.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input_uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input_uri"
+          ],
+          "additionalProperties": false
+        },
+        "strict": true
+      }
+    ],
+    "tool_schema_version": "document-tools-v1-planned-ocr-pdf",
+    "max_rounds": 8,
+    "max_tool_calls": 16,
+    "timeout_sec": 120.0,
+    "sampling_parameters": {}
+  },
+  "arrival_plans": {
+    "low_load": {
+      "mode": "fixed",
+      "request_count": 9,
+      "seed": 101,
+      "interval_sec": 30.0,
+      "concurrency_limit": 1,
+      "burst_size": 1
+    },
+    "sustained": {
+      "mode": "fixed",
+      "request_count": 18,
+      "seed": 102,
+      "interval_sec": 1.0,
+      "concurrency_limit": 8,
+      "burst_size": 1
+    },
+    "burst": {
+      "mode": "burst",
+      "request_count": 18,
+      "seed": 103,
+      "interval_sec": 10.0,
+      "concurrency_limit": 8,
+      "burst_size": 6
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "image_ocr-alpha-small-v1",
+      "task_type": "image_ocr",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "invoice-alpha"
+      ],
+      "split": "calibration",
+      "input_size": "small",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "image_width": 640,
+        "image_height": 480
+      },
+      "allowed_tools": [
+        "image_preprocess",
+        "ocr"
+      ],
+      "goal": "Read the invoice image; preprocess if needed. Return invoice_id, total, currency.",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "invoice_id": "INV-101",
+        "total": "125.00",
+        "currency": "USD"
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/alpha-small.png"
+      ]
+    },
+    {
+      "task_id": "pdf_extract-alpha-small-v1",
+      "task_type": "pdf_extract",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "report-alpha"
+      ],
+      "split": "calibration",
+      "input_size": "small",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "pdf_pages": 1,
+        "document_text_chars": 741
+      },
+      "allowed_tools": [
+        "pdf_parse"
+      ],
+      "goal": "Extract project, budget, currency and status from the entire project report.",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "project": "ALPHA",
+        "budget": "150.00",
+        "currency": "USD",
+        "status": "APPROVED"
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/alpha-small.pdf"
+      ]
+    },
+    {
+      "task_id": "document_reconcile-alpha-small-v1",
+      "task_type": "document_reconcile",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "invoice-alpha",
+        "report-alpha"
+      ],
+      "split": "calibration",
+      "input_size": "small",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "image_width": 640,
+        "image_height": 480,
+        "pdf_pages": 1,
+        "document_text_chars": 741
+      },
+      "allowed_tools": [
+        "image_preprocess",
+        "ocr",
+        "pdf_parse"
+      ],
+      "goal": "Read both sources and reconcile the invoice with the report. Return invoice_id, project, total, budget, and within_budget (a boolean).",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "invoice_id": "INV-101",
+        "project": "ALPHA",
+        "total": "125.00",
+        "budget": "150.00",
+        "within_budget": true
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/alpha-small.png",
+        "workload_fixtures_v1/alpha-small.pdf"
+      ]
+    },
+    {
+      "task_id": "image_ocr-alpha-medium-v1",
+      "task_type": "image_ocr",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "invoice-alpha"
+      ],
+      "split": "calibration",
+      "input_size": "medium",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "image_width": 1280,
+        "image_height": 960
+      },
+      "allowed_tools": [
+        "image_preprocess",
+        "ocr"
+      ],
+      "goal": "Read the invoice image; preprocess if needed. Return invoice_id, total, currency.",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "invoice_id": "INV-101",
+        "total": "125.00",
+        "currency": "USD"
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/alpha-medium.png"
+      ]
+    },
+    {
+      "task_id": "pdf_extract-alpha-medium-v1",
+      "task_type": "pdf_extract",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "report-alpha"
+      ],
+      "split": "calibration",
+      "input_size": "medium",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "pdf_pages": 3,
+        "document_text_chars": 2143
+      },
+      "allowed_tools": [
+        "pdf_parse"
+      ],
+      "goal": "Extract project, budget, currency and status from the entire project report.",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "project": "ALPHA",
+        "budget": "150.00",
+        "currency": "USD",
+        "status": "APPROVED"
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/alpha-medium.pdf"
+      ]
+    },
+    {
+      "task_id": "document_reconcile-alpha-medium-v1",
+      "task_type": "document_reconcile",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "invoice-alpha",
+        "report-alpha"
+      ],
+      "split": "calibration",
+      "input_size": "medium",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "image_width": 1280,
+        "image_height": 960,
+        "pdf_pages": 3,
+        "document_text_chars": 2143
+      },
+      "allowed_tools": [
+        "image_preprocess",
+        "ocr",
+        "pdf_parse"
+      ],
+      "goal": "Read both sources and reconcile the invoice with the report. Return invoice_id, project, total, budget, and within_budget (a boolean).",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "invoice_id": "INV-101",
+        "project": "ALPHA",
+        "total": "125.00",
+        "budget": "150.00",
+        "within_budget": true
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/alpha-medium.png",
+        "workload_fixtures_v1/alpha-medium.pdf"
+      ]
+    },
+    {
+      "task_id": "image_ocr-alpha-large-v1",
+      "task_type": "image_ocr",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "invoice-alpha"
+      ],
+      "split": "calibration",
+      "input_size": "large",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "image_width": 2560,
+        "image_height": 1920
+      },
+      "allowed_tools": [
+        "image_preprocess",
+        "ocr"
+      ],
+      "goal": "Read the invoice image; preprocess if needed. Return invoice_id, total, currency.",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "invoice_id": "INV-101",
+        "total": "125.00",
+        "currency": "USD"
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/alpha-large.png"
+      ]
+    },
+    {
+      "task_id": "pdf_extract-alpha-large-v1",
+      "task_type": "pdf_extract",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "report-alpha"
+      ],
+      "split": "calibration",
+      "input_size": "large",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "pdf_pages": 6,
+        "document_text_chars": 4246
+      },
+      "allowed_tools": [
+        "pdf_parse"
+      ],
+      "goal": "Extract project, budget, currency and status from the entire project report.",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "project": "ALPHA",
+        "budget": "150.00",
+        "currency": "USD",
+        "status": "APPROVED"
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/alpha-large.pdf"
+      ]
+    },
+    {
+      "task_id": "document_reconcile-alpha-large-v1",
+      "task_type": "document_reconcile",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "invoice-alpha",
+        "report-alpha"
+      ],
+      "split": "calibration",
+      "input_size": "large",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "image_width": 2560,
+        "image_height": 1920,
+        "pdf_pages": 6,
+        "document_text_chars": 4246
+      },
+      "allowed_tools": [
+        "image_preprocess",
+        "ocr",
+        "pdf_parse"
+      ],
+      "goal": "Read both sources and reconcile the invoice with the report. Return invoice_id, project, total, budget, and within_budget (a boolean).",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "invoice_id": "INV-101",
+        "project": "ALPHA",
+        "total": "125.00",
+        "budget": "150.00",
+        "within_budget": true
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/alpha-large.png",
+        "workload_fixtures_v1/alpha-large.pdf"
+      ]
+    },
+    {
+      "task_id": "image_ocr-beta-small-v1",
+      "task_type": "image_ocr",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "invoice-beta"
+      ],
+      "split": "validation",
+      "input_size": "small",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "image_width": 640,
+        "image_height": 480
+      },
+      "allowed_tools": [
+        "image_preprocess",
+        "ocr"
+      ],
+      "goal": "Read the invoice image; preprocess if needed. Return invoice_id, total, currency.",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "invoice_id": "INV-202",
+        "total": "270.00",
+        "currency": "USD"
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/beta-small.png"
+      ]
+    },
+    {
+      "task_id": "pdf_extract-beta-small-v1",
+      "task_type": "pdf_extract",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "report-beta"
+      ],
+      "split": "validation",
+      "input_size": "small",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "pdf_pages": 1,
+        "document_text_chars": 739
+      },
+      "allowed_tools": [
+        "pdf_parse"
+      ],
+      "goal": "Extract project, budget, currency and status from the entire project report.",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "project": "BETA",
+        "budget": "250.00",
+        "currency": "USD",
+        "status": "APPROVED"
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/beta-small.pdf"
+      ]
+    },
+    {
+      "task_id": "document_reconcile-beta-small-v1",
+      "task_type": "document_reconcile",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "invoice-beta",
+        "report-beta"
+      ],
+      "split": "validation",
+      "input_size": "small",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "image_width": 640,
+        "image_height": 480,
+        "pdf_pages": 1,
+        "document_text_chars": 739
+      },
+      "allowed_tools": [
+        "image_preprocess",
+        "ocr",
+        "pdf_parse"
+      ],
+      "goal": "Read both sources and reconcile the invoice with the report. Return invoice_id, project, total, budget, and within_budget (a boolean).",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "invoice_id": "INV-202",
+        "project": "BETA",
+        "total": "270.00",
+        "budget": "250.00",
+        "within_budget": false
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/beta-small.png",
+        "workload_fixtures_v1/beta-small.pdf"
+      ]
+    },
+    {
+      "task_id": "image_ocr-beta-medium-v1",
+      "task_type": "image_ocr",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "invoice-beta"
+      ],
+      "split": "validation",
+      "input_size": "medium",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "image_width": 1280,
+        "image_height": 960
+      },
+      "allowed_tools": [
+        "image_preprocess",
+        "ocr"
+      ],
+      "goal": "Read the invoice image; preprocess if needed. Return invoice_id, total, currency.",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "invoice_id": "INV-202",
+        "total": "270.00",
+        "currency": "USD"
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/beta-medium.png"
+      ]
+    },
+    {
+      "task_id": "pdf_extract-beta-medium-v1",
+      "task_type": "pdf_extract",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "report-beta"
+      ],
+      "split": "validation",
+      "input_size": "medium",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "pdf_pages": 3,
+        "document_text_chars": 2137
+      },
+      "allowed_tools": [
+        "pdf_parse"
+      ],
+      "goal": "Extract project, budget, currency and status from the entire project report.",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "project": "BETA",
+        "budget": "250.00",
+        "currency": "USD",
+        "status": "APPROVED"
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/beta-medium.pdf"
+      ]
+    },
+    {
+      "task_id": "document_reconcile-beta-medium-v1",
+      "task_type": "document_reconcile",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "invoice-beta",
+        "report-beta"
+      ],
+      "split": "validation",
+      "input_size": "medium",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "image_width": 1280,
+        "image_height": 960,
+        "pdf_pages": 3,
+        "document_text_chars": 2137
+      },
+      "allowed_tools": [
+        "image_preprocess",
+        "ocr",
+        "pdf_parse"
+      ],
+      "goal": "Read both sources and reconcile the invoice with the report. Return invoice_id, project, total, budget, and within_budget (a boolean).",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "invoice_id": "INV-202",
+        "project": "BETA",
+        "total": "270.00",
+        "budget": "250.00",
+        "within_budget": false
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/beta-medium.png",
+        "workload_fixtures_v1/beta-medium.pdf"
+      ]
+    },
+    {
+      "task_id": "image_ocr-beta-large-v1",
+      "task_type": "image_ocr",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "invoice-beta"
+      ],
+      "split": "validation",
+      "input_size": "large",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "image_width": 2560,
+        "image_height": 1920
+      },
+      "allowed_tools": [
+        "image_preprocess",
+        "ocr"
+      ],
+      "goal": "Read the invoice image; preprocess if needed. Return invoice_id, total, currency.",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "invoice_id": "INV-202",
+        "total": "270.00",
+        "currency": "USD"
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/beta-large.png"
+      ]
+    },
+    {
+      "task_id": "pdf_extract-beta-large-v1",
+      "task_type": "pdf_extract",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "report-beta"
+      ],
+      "split": "validation",
+      "input_size": "large",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "pdf_pages": 6,
+        "document_text_chars": 4234
+      },
+      "allowed_tools": [
+        "pdf_parse"
+      ],
+      "goal": "Extract project, budget, currency and status from the entire project report.",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "project": "BETA",
+        "budget": "250.00",
+        "currency": "USD",
+        "status": "APPROVED"
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/beta-large.pdf"
+      ]
+    },
+    {
+      "task_id": "document_reconcile-beta-large-v1",
+      "task_type": "document_reconcile",
+      "data_version": "synthetic-documents-v1",
+      "source_ids": [
+        "invoice-beta",
+        "report-beta"
+      ],
+      "split": "validation",
+      "input_size": "large",
+      "size_features": {
+        "estimated_output_tokens": 128,
+        "image_width": 2560,
+        "image_height": 1920,
+        "pdf_pages": 6,
+        "document_text_chars": 4234
+      },
+      "allowed_tools": [
+        "image_preprocess",
+        "ocr",
+        "pdf_parse"
+      ],
+      "goal": "Read both sources and reconcile the invoice with the report. Return invoice_id, project, total, budget, and within_budget (a boolean).",
+      "scoring_rule": {
+        "name": "exact_fields",
+        "version": "v1",
+        "description": "Score in [0,1] = correctly matched reference fields / number of reference fields. Parse final answer as one JSON object; strings are stripped of surrounding whitespace and compared case-sensitively; booleans must match in type and value; monetary values use two-decimal strings. Missing/wrong fields score zero; extra fields are ignored. Invalid JSON, failed runs, empty answers and timeouts score zero."
+      },
+      "reference_answer": {
+        "invoice_id": "INV-202",
+        "project": "BETA",
+        "total": "270.00",
+        "budget": "250.00",
+        "within_budget": false
+      },
+      "input_payload": {
+        "input_kind": "local_artifacts"
+      },
+      "artifact_refs": [
+        "workload_fixtures_v1/beta-large.png",
+        "workload_fixtures_v1/beta-large.pdf"
+      ]
+    }
+  ]
+}

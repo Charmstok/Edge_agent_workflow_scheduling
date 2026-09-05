@@ -42,6 +42,7 @@ class ExperimentManifest:
     mode: Literal["live", "replay"]
     run_started_at: str = field(default_factory=_utc_now_iso)
     manifest_version: int = 1
+    workload_parameters: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for value, name in (
@@ -67,6 +68,7 @@ class ExperimentManifest:
         _json_object(self.agent_limits, "agent_limits")
         _json_object(self.scheduler_parameters, "scheduler_parameters")
         _json_object(self.resource_profiles, "resource_profiles")
+        _json_object(self.workload_parameters, "workload_parameters")
         _optional_integer(self.provider_seed, "provider_seed")
         _optional_integer(self.scheduler_seed, "scheduler_seed")
         _optional_integer(self.profile_seed, "profile_seed")

@@ -115,6 +115,7 @@ def build_experiment_manifest(
     scheduler_seed: int | None = None,
     profile_seed: int | None = None,
     run_started_at: str | None = None,
+    workload_parameters: dict[str, Any] | None = None,
 ) -> ExperimentManifest:
     """Capture Agent, Tool, scheduler, and resource inputs for an experiment."""
 
@@ -174,6 +175,7 @@ def build_experiment_manifest(
         "profile_seed": profile_seed,
         "code_version": code_version,
         "mode": mode,
+        "workload_parameters": workload_parameters or {},
     }
     if run_started_at is not None:
         manifest_data["run_started_at"] = run_started_at
