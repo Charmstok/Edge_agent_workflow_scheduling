@@ -161,7 +161,14 @@ class LocalToolExecutor:
                 error_code=invalid[0],
                 error_message=invalid[1],
             )
-        result = self.worker.run_tool(tool_call)
+        remaining = None if timeout_sec is None else timeout_sec - self.queue_wait_time_sec
+        if remaining is not None and remaining <= 0:
+            return ToolResult(
+                tool_call_id=tool_call.tool_call_id, replica_id=self.profile.replica_id,
+                success=False, queue_wait_time_sec=self.queue_wait_time_sec,
+                error_code="timeout", error_message="Tool budget exhausted before execution",
+            )
+        result = self.worker.run_tool(tool_call, timeout_sec=remaining)
         result = replace(
             result,
             queue_wait_time_sec=self.queue_wait_time_sec,

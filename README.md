@@ -50,6 +50,24 @@ main-device development or future LLM-provider dependencies.
 
 ## Run
 
+### Real document Tools
+
+OCR and PDF extraction are optional local adapters with measured execution time,
+explicit pixel/page work units, bounded text artifacts, and batch-wide timeouts.
+See `src/edge_agent_workflow_scheduling/tools/README.md` for the measurement protocol,
+dependency installation, and multi-objective interpretation.
+
+```bash
+uv pip install --python .venv/bin/python -r requirements-tools.txt
+python scripts/run_tool_demos.py
+python scripts/run_tool_demos.py --tools ocr --batch-size 80 --scale large
+```
+
+OCR additionally requires a local Tesseract installation. Missing dependencies are
+reported as skips, not successful validation. Existing offline/profile demos remain usable.
+
+### Agent demos
+
 Run all Milestone 2 demos. Without `ARK_API_KEY`, the online demo is skipped
 while offline, multi-Tool, and replay verification still complete:
 

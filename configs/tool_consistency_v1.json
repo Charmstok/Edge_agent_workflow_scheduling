@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "samples": [
+    {
+      "sample_id": "invoice-alpha-small-v1",
+      "tool_name": "ocr",
+      "arguments": {"input_uri": "workload_fixtures_v1/alpha-small.png"},
+      "expected": {
+        "text_contains": ["INV-101", "ALPHA", "125.00", "USD"],
+        "input_count": 1,
+        "image_count": 1,
+        "image_pixels": 307200
+      },
+      "numeric_tolerances": {"image_pixels": 0}
+    },
+    {
+      "sample_id": "report-alpha-small-v1",
+      "tool_name": "pdf_parse",
+      "arguments": {"input_uri": "workload_fixtures_v1/alpha-small.pdf"},
+      "expected": {
+        "text_contains": ["ALPHA", "Approved budget: 150.00", "Status: APPROVED"],
+        "input_count": 1,
+        "page_count": 1
+      },
+      "numeric_tolerances": {"page_count": 0}
+    }
+  ]
+}

@@ -12,6 +12,7 @@ from jsonschema import Draft202012Validator
 
 from edge_agent_workflow_scheduling.tools.base import (
     FunctionCallOutput,
+    TimeoutTool,
     Tool,
     ToolExecution,
     ToolSpec,
@@ -72,6 +73,7 @@ class ToolRegistry:
         arguments: str | Mapping[str, Any],
         *,
         invocation_id: str,
+        timeout_sec: float | None = None,
     ) -> ToolExecution:
         """Validate and execute one function call without choosing a Worker."""
 
@@ -94,7 +96,12 @@ class ToolRegistry:
             return _failure("invalid_arguments", f"{location}: {error.message}")
 
         try:
-            result = tool.execute(parsed_arguments, invocation_id=invocation_id)
+            if isinstance(tool, TimeoutTool):
+                result = tool.execute_with_timeout(
+                    parsed_arguments, invocation_id=invocation_id, timeout_sec=timeout_sec,
+                )
+            else:
+                result = tool.execute(parsed_arguments, invocation_id=invocation_id)
             if not isinstance(result, ToolExecution):
                 raise TypeError("Tool.execute() must return ToolExecution")
             return result

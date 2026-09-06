@@ -1,0 +1,3 @@
+-r requirements-edge.txt
+
+pypdf==6.1.1

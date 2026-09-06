@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol, TypedDict
+from typing import Any, Literal, Protocol, TypedDict, runtime_checkable
 
 from edge_agent_workflow_scheduling.common import ToolResult
 
@@ -59,6 +59,16 @@ class Tool(Protocol):
         invocation_id: str,
     ) -> ToolExecution:
         """Execute parsed function arguments without selecting a replica."""
+
+
+@runtime_checkable
+class TimeoutTool(Protocol):
+    """Optional bounded execution interface for subprocess-backed Tools."""
+
+    def execute_with_timeout(
+        self, arguments: dict[str, Any], *, invocation_id: str, timeout_sec: float | None,
+    ) -> ToolExecution:
+        """Execute with a wall-clock budget shared across the entire invocation."""
 
 
 def build_function_call_output(

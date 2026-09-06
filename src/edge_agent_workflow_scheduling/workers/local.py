@@ -35,7 +35,7 @@ class LocalWorker:
     def max_concurrency(self) -> int:
         return self.profile.max_concurrency
 
-    def run_tool(self, tool_call: ToolCall) -> ToolResult:
+    def run_tool(self, tool_call: ToolCall, *, timeout_sec: float | None = None) -> ToolResult:
         """Execute a tool call and return a structured result."""
 
         start_time = perf_counter()
@@ -68,10 +68,18 @@ class LocalWorker:
             if self.artificial_delay_sec > 0:
                 sleep(self.artificial_delay_sec)
 
+            remaining = None if timeout_sec is None else timeout_sec - (perf_counter() - start_time)
+            if remaining is not None and remaining <= 0:
+                return ToolResult(
+                    tool_call_id=tool_call.tool_call_id, replica_id=self.replica_id,
+                    success=False, execution_time_sec=perf_counter() - start_time,
+                    error_code="timeout", error_message="local execution budget exhausted",
+                )
             tool_execution = self.tool_registry.execute(
                 tool_call.tool_name,
                 tool_call.arguments,
                 invocation_id=tool_call.tool_call_id,
+                timeout_sec=remaining,
             )
             return ToolResult(
                 tool_call_id=tool_call.tool_call_id,
@@ -80,7 +88,15 @@ class LocalWorker:
                 output=tool_execution.output,
                 execution_time_sec=perf_counter() - start_time,
                 energy_joules=self.profile.energy_profile.get("joules_per_call", 0.0),
-                metadata=dict(tool_execution.metadata),
+                metadata={
+                    **tool_execution.metadata,
+                    "execution_time_source": "measured_wall_clock",
+                    "energy_source": (
+                        "profiled" if "joules_per_call" in self.profile.energy_profile
+                        else "unavailable"
+                    ),
+                    "artificial_delay_sec": self.artificial_delay_sec,
+                },
                 error_code=tool_execution.error_code,
                 error_message=tool_execution.error_message,
             )
