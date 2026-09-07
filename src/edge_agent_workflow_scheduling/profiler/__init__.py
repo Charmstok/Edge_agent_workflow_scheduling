@@ -45,6 +45,14 @@ from edge_agent_workflow_scheduling.profiler.replay import (
     replay_calls,
     resources_from_manifest,
 )
+from edge_agent_workflow_scheduling.profiler.tool_sampling import (
+    ProcessTreeSampler,
+    ToolSamplingConfig,
+    collect_host_inventory,
+    percentile,
+    run_tool_sampling,
+    summarize_measurements,
+)
 from edge_agent_workflow_scheduling.profiler.trace import (
     JsonlTraceLogger,
     TraceBundleStore,
@@ -96,4 +104,10 @@ __all__ = [
     "run_baseline_experiment",
     "REFERENCE_POLICIES",
     "run_pareto_experiment",
+    "ProcessTreeSampler",
+    "ToolSamplingConfig",
+    "collect_host_inventory",
+    "percentile",
+    "run_tool_sampling",
+    "summarize_measurements",
 ]

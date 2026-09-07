@@ -14,6 +14,7 @@ from edge_agent_workflow_scheduling.tools.documents import (
     PDFParseTool,
 )
 from edge_agent_workflow_scheduling.tools.image_preprocess import (
+    ALL_IMAGE_OPERATIONS,
     ImageOperation,
     ImagePreprocessConfig,
     ImagePreprocessTool,
@@ -24,6 +25,7 @@ from edge_agent_workflow_scheduling.tools.registry import ToolRegistry
 
 __all__ = [
     "DocumentToolConfig",
+    "ALL_IMAGE_OPERATIONS",
     "OCRConfig",
     "OCRTool",
     "PDFParseTool",

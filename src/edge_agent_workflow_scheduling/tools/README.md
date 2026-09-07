@@ -271,9 +271,70 @@ metric provenance. In particular:
 - Standalone Tool time does not replace Agent end-to-end latency or LLM queueing time.
 - Timing metadata alone does not establish energy consumption or final-answer quality.
 
-## 6. Setup and Execution
+## 6. MacBook Sampling Protocol
 
-### 6.1 Dependencies
+`configs/tool_sampling_v1.json` defines the reproducible local sampling matrix. Each
+requested Tool is evaluated at `small`, `medium`, and `large` input scales and at
+concurrency levels 1 and 2. The matrix uses one cold-start call, one warm-up call per
+worker, and three retained measurement calls per worker. These counts are configuration
+values rather than assumptions embedded in the sampler.
+
+Run the matrix from the repository root:
+
+```bash
+python scripts/sample_tools.py
+```
+
+The command invokes each configuration through the local executor. It does not add
+artificial delay, clear operating-system caches, or claim that the logical target is a
+physical heterogeneous device. For each combination it writes:
+
+| Artifact | Contents |
+| --- | --- |
+| `manifest.json` | Sampling matrix hash, host inventory, dependency versions, and timing method |
+| `summary.json` | Completed/skipped combinations and phase-level summaries |
+| `cold_start.jsonl` | First calls on newly constructed Tool executors |
+| `warmup.jsonl` | Calls excluded from formal statistics but retained for inspection |
+| `measurement.jsonl` | All formal terminal calls used for distributions and throughput |
+| `*_resource_samples.jsonl` | Raw process-tree resource samples per phase |
+| `trace.jsonl` | Existing normalized Tool trace records |
+| `*/summary.json` | Combination-specific provenance and aggregated metrics |
+
+The cold-start phase is defined as the first invocation of a newly constructed Tool and
+executor. It does not clear OS filesystem caches or reload the machine. Warm-up results
+are retained but are not mixed into formal measurement statistics. Every terminal formal
+measurement, including failures and timeouts, remains in the denominator; no outlier is
+silently removed. Failed-call codes and timeout counts are reported separately.
+
+`queue_wait_time_sec` is measured from submission to worker start. Since the sampler uses
+one declared local executor target with a bounded `ThreadPoolExecutor`, concurrency 2 can
+create observable queueing, while the executor's input/output transfer fields remain zero
+under the explicit `local_same_host_no_transfer` model. The sampler records submitted,
+started, finished, and running counts at call boundaries.
+
+CPU and memory are sampled by polling the profiler process and its live descendant
+processes with `psutil`. Process-tree RSS is summed across the sampled process tree and
+the peak is retained. Process-tree CPU is normalized over logical CPUs; very short-lived
+children can be missed, so the limitation is recorded in the manifest. Sampling interval,
+sample count, method, and sampling errors are retained. GPU inventory may be recorded from
+the host, but GPU utilization is explicitly `unavailable` because this prototype does not
+implement a vendor-specific utilization sampler. Missing CPU/memory support is likewise
+reported as unavailable rather than zero.
+
+The measurement summary reports minimum, mean, median, P95, P99, maximum, population
+standard deviation, total queue time, total execution time, total latency, success rate,
+failure codes, timeout count, and completed-calls-per-second. The phase wall-clock
+throughput includes the controlled concurrent execution window; it is not a hardware peak
+throughput claim.
+
+The default matrix is intended to produce an evidence table for subsequent profile fitting.
+It does not fit latency or energy coefficients. Energy remains unavailable unless a
+separate configured `joules_per_call` profile is supplied, and Tool quality remains an
+independent task-level measurement.
+
+## 7. Setup and Execution
+
+### 7.1 Dependencies
 
 Install optional Python dependencies in the project environment:
 
@@ -294,7 +355,7 @@ sudo apt-get install tesseract-ocr tesseract-ocr-eng
 Other OCR languages require their language data. OCR/PDF dependencies are optional for
 the existing image-only and profile-based execution paths.
 
-### 6.2 Validation Commands
+### 7.2 Validation Commands
 
 Run from the repository root:
 
@@ -307,7 +368,7 @@ python scripts/run_tool_demos.py --tools ocr --batch-size 80 --scale large
 These commands run small-sample validation, larger batches, and an OCR stress workload,
 respectively. They do not execute a live LLM Agent or compare multiple physical devices.
 
-### 6.3 Experiment Artifacts
+### 7.3 Experiment Artifacts
 
 Each run creates a distinct directory under `data/tool_demos/` containing:
 

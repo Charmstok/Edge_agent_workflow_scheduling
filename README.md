@@ -66,6 +66,16 @@ python scripts/run_tool_demos.py --tools ocr --batch-size 80 --scale large
 OCR additionally requires a local Tesseract installation. Missing dependencies are
 reported as skips, not successful validation. Existing offline/profile demos remain usable.
 
+Collect a versioned local Tool sampling matrix with cold-start, warm-up, and measurement
+phases:
+
+```bash
+python scripts/sample_tools.py
+```
+
+The sampler records timing distributions, throughput, success/failure counts, queue
+depth, host inventory, process-tree CPU/RSS samples, and explicit unavailable GPU metrics.
+
 ### Agent demos
 
 Run all Milestone 2 demos. Without `ARK_API_KEY`, the online demo is skipped
