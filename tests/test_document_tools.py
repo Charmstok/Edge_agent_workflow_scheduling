@@ -58,6 +58,19 @@ def _call(tool_name, input_uri, call_id="tool-call"):
     )
 
 
+def test_document_tool_specs_describe_distinct_operations(tmp_path):
+    ocr_description = OCRTool(OCRConfig(output_dir=tmp_path)).spec["description"]
+    pdf_description = PDFParseTool(DocumentToolConfig(output_dir=tmp_path)).spec["description"]
+
+    assert ocr_description != pdf_description
+    assert "Tesseract OCR" in ocr_description
+    assert "image file" in ocr_description
+    assert "does not process PDF" in ocr_description
+    assert "pypdf" in pdf_description
+    assert "PDF file" in pdf_description
+    assert "does not perform OCR" in pdf_description
+
+
 @pytest.mark.parametrize("tool_name", ["ocr", "pdf_parse"])
 def test_real_tools_return_measured_work_and_bounded_artifacts(tmp_path, tool_name):
     if tool_name == "ocr" and not HAS_OCR or tool_name == "pdf_parse" and not HAS_PDF:

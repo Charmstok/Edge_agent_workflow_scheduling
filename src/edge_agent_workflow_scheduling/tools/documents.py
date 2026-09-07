@@ -71,6 +71,7 @@ class OCRConfig(DocumentToolConfig):
 class _DocumentTool:
     config: DocumentToolConfig
     tool_name: str
+    description: ClassVar[str]
     implementation_version: ClassVar[str] = "1.0.0"
 
     @property
@@ -78,10 +79,7 @@ class _DocumentTool:
         return {
             "type": "function",
             "name": self.tool_name,
-            "description": (
-                f"Extract text using {self.tool_name} from a local file or a JSON batch manifest. "
-                "Returns bounded text and a local artifact reference for the complete output."
-            ),
+            "description": self.description,
             "parameters": {
                 "type": "object",
                 "properties": {"input_uri": {"type": "string"}},
@@ -218,6 +216,13 @@ class _DocumentTool:
 class OCRTool(_DocumentTool):
     config: OCRConfig
     tool_name: ClassVar[str] = "ocr"
+    description: ClassVar[str] = (
+        "Extract text from one or more local image files using Tesseract OCR. "
+        "input_uri must reference an image file or a JSON batch manifest containing "
+        "image file URIs. The result contains bounded inline text and a local artifact "
+        "reference for the complete OCR output. This tool does not process PDF files "
+        "or perform structured field extraction."
+    )
 
     def check_available(self) -> None:
         if shutil.which(self.config.executable) is None:
@@ -274,6 +279,13 @@ class OCRTool(_DocumentTool):
 class PDFParseTool(_DocumentTool):
     config: DocumentToolConfig
     tool_name: ClassVar[str] = "pdf_parse"
+    description: ClassVar[str] = (
+        "Extract embedded text from one or more local PDF files using pypdf. "
+        "input_uri must reference a PDF file or a JSON batch manifest containing "
+        "PDF file URIs. The result contains bounded inline text and a local artifact "
+        "reference for the complete page-ordered output. This tool does not perform OCR "
+        "and may return empty text for image-only PDF pages."
+    )
 
     def check_available(self) -> None:
         if importlib.util.find_spec("pypdf") is None:
