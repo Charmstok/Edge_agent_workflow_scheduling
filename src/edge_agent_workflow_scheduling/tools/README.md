@@ -2,7 +2,7 @@
 
 ## 1. Research Scope
 
-This module provides real local computation for document-oriented Agent workloads. Its purpose is to support scheduling experiments, not to introduce new image-processing or document-recognition algorithms. The implementations reuse `ToolRegistry`, `LocalWorker`, `LocalToolExecutor`, `ToolCall`, and `ToolResult`; no separate scheduler or service is added.
+This module provides real local computation for document-oriented Agent workloads. Its purpose is to support scheduling experiments, not to introduce new image-processing or document-recognition algorithms. Each concrete Tool lives in its own module (`image_preprocess.py`, `ocr.py`, `pdf_parse.py`, and `pdf_render.py`). The implementations reuse `ToolRegistry`, `LocalWorker`, `LocalToolExecutor`, `ToolCall`, and `ToolResult`; no separate scheduler or service is added.
 
 An Agent decides which operation to request, while the scheduler selects its execution target. An illustrative task is to read an invoice image, extract a project budget from a PDF, and determine whether the invoice exceeds that budget. The Agent may request image preprocessing, OCR, and PDF extraction before reasoning over the returned evidence. This example describes task semantics, not a fixed Tool-call sequence or enforced DAG.
 
@@ -17,6 +17,7 @@ Each Tool is described below in terms of its task purpose, implementation, workl
 | `image_preprocess` | Pillow | Image → transformed image artifact | Resolution, operation sequence, repetition |
 | `ocr` | Tesseract | Image or image batch → extracted text | Pixel count, batch size, recognition configuration |
 | `pdf_parse` | pypdf | PDF or PDF batch → page-ordered text | Page count, file size, batch size |
+| `pdf_render` | Poppler `pdftoppm` | PDF or PDF batch → page PNG files | Page count, DPI, file size |
 
 ### 2.1 Image Preprocessing
 
@@ -64,9 +65,20 @@ T_pdf ≈ intercept + c * input_count + d * page_count + e * input_bytes
 
 **Scheduling relevance.** PDF extraction introduces a document workload distinct from OCR, allowing experiments with mixed short and long calls. Simple text PDFs may remain fast at larger page counts; no minimum duration is assumed. Larger extracted documents increase subsequent LLM context only when that text is actually included in the request. Page count is not a substitute for measured LLM token usage, especially with truncated inline Tool output.
 
+### 2.4 PDF Page Rendering
+
+**Purpose and implementation.** `PDFRenderTool` renders each page of a local PDF to a PNG artifact using Poppler's `pdftoppm`. It returns stable local image URIs and page numbers for a subsequent `ocr` call. It does not extract text and does not perform OCR. This provides an explicit fallback path for scanned or image-only PDFs:
+
+```text
+pdf_parse -> text available -> LLM
+pdf_parse -> empty text -> pdf_render -> ocr -> LLM
+```
+
+The Tool accepts the same single-file or JSON batch-manifest input contract as the document Tools. `dpi` is recorded in the backend configuration and defaults to 150. Rendering time and page count are measured; image bytes are produced as artifacts and are not embedded in the trace.
+
 ## 3. Shared Execution Contracts
 
-The input, text-output, and subprocess timeout conventions in this section apply to `OCRTool` and `PDFParseTool`. `ImagePreprocessTool` retains its existing operation-specific arguments, image-artifact output, and in-process execution.
+The input, text-output, and subprocess timeout conventions in this section apply to `OCRTool` and `PDFParseTool`. `PDFRenderTool` uses the same local input, batch, deadline, and error conventions but returns page image artifacts instead of text. `ImagePreprocessTool` retains its existing operation-specific arguments, image-artifact output, and in-process execution.
 
 ### 3.1 Single-file and Batch Inputs
 
@@ -226,9 +238,15 @@ brew install tesseract
 
 # Ubuntu / Debian-based edge nodes
 sudo apt-get install tesseract-ocr tesseract-ocr-eng
+
+# macOS PDF rendering
+brew install poppler
+
+# Ubuntu / Debian-based PDF rendering
+sudo apt-get install poppler-utils
 ```
 
-Other OCR languages require their language data. OCR/PDF dependencies are optional for the existing image-only and profile-based execution paths.
+Other OCR languages require their language data. OCR, PDF parsing, and PDF rendering dependencies are optional for the existing image-only and profile-based execution paths.
 
 ### 7.2 Validation Commands
 

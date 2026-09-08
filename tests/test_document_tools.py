@@ -22,6 +22,8 @@ from edge_agent_workflow_scheduling.tools import (
     OCRConfig,
     OCRTool,
     PDFParseTool,
+    PDFRenderConfig,
+    PDFRenderTool,
     ToolRegistry,
     resolve_local_path,
 )
@@ -30,6 +32,7 @@ from edge_agent_workflow_scheduling.workers import LocalWorker
 FIXTURES = Path("configs/workload_fixtures_v1").resolve()
 HAS_PDF = importlib.util.find_spec("pypdf") is not None
 HAS_OCR = shutil.which("tesseract") is not None
+HAS_PDF_RENDER = shutil.which("pdftoppm") is not None
 
 
 def _executor(tool, replica_id="replica-1", energy_profile=None):
@@ -69,6 +72,36 @@ def test_document_tool_specs_describe_distinct_operations(tmp_path):
     assert "pypdf" in pdf_description
     assert "PDF file" in pdf_description
     assert "does not perform OCR" in pdf_description
+
+
+def test_pdf_render_spec_is_an_explicit_ocr_fallback(tmp_path):
+    spec = PDFRenderTool(PDFRenderConfig(output_dir=tmp_path)).spec
+    assert spec["name"] == "pdf_render"
+    assert "PNG" in spec["description"]
+    assert "OCR" in spec["description"]
+
+
+@pytest.mark.skipif(not HAS_PDF_RENDER, reason="Poppler pdftoppm unavailable")
+def test_pdf_render_returns_page_artifacts_and_supports_batch(tmp_path):
+    batch = tmp_path / "pdfs.json"
+    batch.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "input_uris": [str(FIXTURES / "alpha-small.pdf")],
+            }
+        )
+    )
+    tool = PDFRenderTool(PDFRenderConfig(output_dir=tmp_path / "out"))
+    result = _executor(tool).execute(_call("pdf_render", batch))
+    assert result.success, result.error_message
+    assert result.metadata["backend"] == "pdftoppm"
+    assert result.metadata["work_unit"] == "page"
+    assert result.output["page_count"] == 1
+    page = result.output["documents"][0]["pages"][0]
+    rendered = resolve_local_path(page["image_uri"], tmp_path)
+    assert rendered.is_file()
+    assert rendered.suffix == ".png"
 
 
 @pytest.mark.parametrize("tool_name", ["ocr", "pdf_parse"])

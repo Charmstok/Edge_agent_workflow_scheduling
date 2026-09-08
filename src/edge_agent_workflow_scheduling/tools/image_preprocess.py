@@ -5,11 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
-from urllib.parse import unquote, urlparse
 
 from PIL import Image, ImageFilter
 
 from edge_agent_workflow_scheduling.tools.base import ToolExecution, ToolSpec
+from edge_agent_workflow_scheduling.tools.paths import resolve_local_path
 
 ImageOperation = Literal["grayscale", "resize", "blur", "threshold", "edge_detect"]
 
@@ -208,18 +208,3 @@ class ImagePreprocessTool:
     def _output_path(self, invocation_id: str) -> Path:
         safe_id = invocation_id.replace("/", "_").replace("\\", "_")
         return self.config.output_dir / f"{safe_id}{self.config.output_suffix}"
-
-
-def resolve_local_path(uri: str, local_root: Path) -> Path:
-    """Resolve file, local, or plain path URIs to a local path."""
-
-    parsed = urlparse(uri)
-    if parsed.scheme == "file":
-        return Path(unquote(parsed.path))
-    if parsed.scheme == "local":
-        raw_path = unquote(f"{parsed.netloc}{parsed.path}")
-        return local_root / raw_path.lstrip("/")
-    if parsed.scheme:
-        raise ValueError(f"unsupported input URI scheme {parsed.scheme!r}")
-    path = Path(uri)
-    return path if path.is_absolute() else local_root / path

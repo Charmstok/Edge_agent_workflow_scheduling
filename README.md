@@ -39,7 +39,7 @@ Use a 64-bit Raspberry Pi OS when possible so Pillow and its dependencies can us
 
 ### Real document Tools
 
-OCR and PDF extraction are optional local adapters with measured execution time, explicit pixel/page work units, bounded text artifacts, and batch-wide timeouts. See `src/edge_agent_workflow_scheduling/tools/README.md` for the measurement protocol, dependency installation, and multi-objective interpretation.
+OCR, PDF extraction, and PDF page rendering are optional local adapters with measured execution time, explicit pixel/page work units, bounded artifacts, and batch-wide timeouts. See `src/edge_agent_workflow_scheduling/tools/README.md` for the measurement protocol, dependency installation, and multi-objective interpretation.
 
 ```bash
 uv pip install --python .venv/bin/python -r requirements-tools.txt

@@ -7,20 +7,18 @@ from edge_agent_workflow_scheduling.tools.base import (
     ToolSpec,
     build_function_call_output,
 )
-from edge_agent_workflow_scheduling.tools.documents import (
-    DocumentToolConfig,
-    OCRConfig,
-    OCRTool,
-    PDFParseTool,
-)
+from edge_agent_workflow_scheduling.tools.document_common import DocumentToolConfig
 from edge_agent_workflow_scheduling.tools.image_preprocess import (
     ALL_IMAGE_OPERATIONS,
     ImageOperation,
     ImagePreprocessConfig,
     ImagePreprocessTool,
     ImageProfile,
-    resolve_local_path,
 )
+from edge_agent_workflow_scheduling.tools.ocr import OCRConfig, OCRTool
+from edge_agent_workflow_scheduling.tools.paths import resolve_local_path
+from edge_agent_workflow_scheduling.tools.pdf_parse import PDFParseTool
+from edge_agent_workflow_scheduling.tools.pdf_render import PDFRenderConfig, PDFRenderTool
 from edge_agent_workflow_scheduling.tools.registry import ToolRegistry
 
 __all__ = [
@@ -29,6 +27,8 @@ __all__ = [
     "OCRConfig",
     "OCRTool",
     "PDFParseTool",
+    "PDFRenderConfig",
+    "PDFRenderTool",
     "FunctionCallOutput",
     "ImageOperation",
     "ImageProfile",
