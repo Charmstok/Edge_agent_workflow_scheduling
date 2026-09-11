@@ -41,8 +41,7 @@ pip-delete-this-directory.txt
 
 # Unit test / coverage reports
 /tests/*
-!/tests/test_document_tools.py
-!/tests/test_tool_sampling.py
+
 htmlcov/
 .tox/
 .nox/
@@ -79,7 +78,9 @@ instance/
 
 # Sphinx documentation
 docs/_build/
-docs/
+docs/*
+!docs/project_plan.md
+!docs/llm_measurement.md
 
 # PyBuilder
 .pybuilder/

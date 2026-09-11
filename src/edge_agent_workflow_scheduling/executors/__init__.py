@@ -13,6 +13,10 @@ from edge_agent_workflow_scheduling.executors.base import (
     ToolExecutor,
     ToolExecutorFactory,
 )
+from edge_agent_workflow_scheduling.executors.chat import (
+    OpenAIChatExecutor,
+    create_openai_chat_executor,
+)
 from edge_agent_workflow_scheduling.executors.openai import (
     OpenAIResponsesExecutor,
     create_openai_responses_executor,
@@ -31,6 +35,8 @@ __all__ = [
     "LocalToolExecutor",
     "MockLLMExecutor",
     "OpenAIResponsesExecutor",
+    "OpenAIChatExecutor",
+    "create_openai_chat_executor",
     "ProfileLLMExecutor",
     "ProfileToolExecutor",
     "ToolExecutor",

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import tomllib
 from pathlib import Path
 
@@ -12,8 +14,11 @@ def load_llm_profiles(path: str | Path) -> list[LLMInstanceProfile]:
     """Load ordered LLM instance profiles from a TOML file."""
 
     config_path = Path(path)
-    with config_path.open("rb") as config_file:
-        data = tomllib.load(config_file)
+    if config_path.suffix == ".json":
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+    else:
+        with config_path.open("rb") as config_file:
+            data = tomllib.load(config_file)
     raw_profiles = data.get("llm_instances")
     if not isinstance(raw_profiles, list) or not raw_profiles:
         raise ValueError("config must contain at least one [[llm_instances]] entry")
@@ -23,6 +28,11 @@ def load_llm_profiles(path: str | Path) -> list[LLMInstanceProfile]:
     for index, raw_profile in enumerate(raw_profiles):
         if not isinstance(raw_profile, dict):
             raise ValueError(f"llm_instances[{index}] must be a TOML table")
+        deployment = raw_profile.get("deployment_config", {})
+        for field, env_field in (("model", "model_env"), ("base_url", "base_url_env")):
+            env_name = deployment.get(env_field)
+            if env_name and os.getenv(env_name):
+                raw_profile[field] = os.environ[env_name]
         try:
             profile = LLMInstanceProfile.from_dict(raw_profile)
         except (TypeError, ValueError) as exc:

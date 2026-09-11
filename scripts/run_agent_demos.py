@@ -26,6 +26,7 @@ from edge_agent_workflow_scheduling.executors import (
     LocalToolExecutor,
     ProfileLLMExecutor,
     ProfileToolExecutor,
+    create_openai_chat_executor,
     create_openai_responses_executor,
 )
 from edge_agent_workflow_scheduling.profiler import (
@@ -147,6 +148,7 @@ def run_online_demo(
 
     factories = ExecutorFactoryRegistry()
     factories.register_llm("openai_responses", create_openai_responses_executor)
+    factories.register_llm("openai_chat", create_openai_chat_executor)
     factories.register_tool(
         "local",
         lambda profile: LocalToolExecutor(

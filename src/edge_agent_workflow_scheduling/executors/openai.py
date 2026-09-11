@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlsplit
 
 if TYPE_CHECKING:
     from openai import OpenAI
@@ -30,6 +31,7 @@ class OpenAIResponsesExecutor:
             model=self.profile.model,
             client=self.client,
             response_options=self.model_parameters,
+            preserve_incomplete=True,
         )
         self._adapter = BackendLLMExecutor(profile=self.profile, backend=backend)
 
@@ -52,6 +54,18 @@ def create_openai_responses_executor(
 ) -> OpenAIResponsesExecutor:
     """Create an OpenAI-compatible executor from a public profile and environment."""
 
+    model_parameters = profile.deployment_config.get("model_parameters", {})
+    if not isinstance(model_parameters, dict):
+        raise ValueError("deployment_config.model_parameters must be an object")
+    return OpenAIResponsesExecutor(
+        profile=profile,
+        client=create_openai_client(profile),
+        model_parameters=model_parameters,
+    )
+
+
+def create_openai_client(profile: LLMInstanceProfile) -> OpenAI:
+    """Build a client without automatic retries so measurement budgets remain bounded."""
     try:
         from openai import OpenAI
     except ImportError as exc:
@@ -73,16 +87,18 @@ def create_openai_responses_executor(
     else:
         api_key = "local-no-auth"
 
-    client_options: dict[str, Any] = {"api_key": api_key}
+    client_options: dict[str, Any] = {"api_key": api_key, "max_retries": 0}
     if profile.base_url is not None:
         client_options["base_url"] = profile.base_url
+    # Local model traffic must not be routed through a workstation HTTP/SOCKS proxy.
+    if profile.base_url and urlsplit(profile.base_url).hostname in {
+        "127.0.0.1",
+        "localhost",
+        "::1",
+    }:
+        import httpx
+
+        client_options["http_client"] = httpx.Client(trust_env=False)
     client = OpenAI(**client_options)
 
-    model_parameters = profile.deployment_config.get("model_parameters", {})
-    if not isinstance(model_parameters, dict):
-        raise ValueError("deployment_config.model_parameters must be an object")
-    return OpenAIResponsesExecutor(
-        profile=profile,
-        client=client,
-        model_parameters=model_parameters,
-    )
+    return client

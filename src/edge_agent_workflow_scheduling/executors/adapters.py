@@ -110,11 +110,14 @@ class BackendLLMExecutor:
                 "LLM backend exceeded timeout_sec",
                 inference_time_sec=inference_time_sec,
             )
+        completed = response.metadata.get("status") in {None, "completed"}
         output_tokens = _output_tokens(response.metadata)
         return LLMResult(
             llm_call_id=llm_call.llm_call_id,
             llm_id=self.profile.llm_id,
-            success=True,
+            success=completed,
+            error_code=None if completed else "incomplete_response",
+            error_message=None if completed else "provider response did not complete",
             output_items=response.output_items,
             output_text=response.output_text,
             response_id=response.response_id,

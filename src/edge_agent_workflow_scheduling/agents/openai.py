@@ -32,6 +32,7 @@ class OpenAIResponsesBackend:
     model: str
     client: OpenAI
     response_options: dict[str, Any] = field(default_factory=dict)
+    preserve_incomplete: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.model, str) or not self.model.strip():
@@ -63,12 +64,12 @@ class OpenAIResponsesBackend:
             **self.response_options,
         )
         status = getattr(response, "status", None)
-        if status not in {None, "completed"}:
-            error = getattr(response, "error", None)
-            message = getattr(error, "message", None) or f"response ended with status {status!r}"
-            raise RuntimeError(message)
+        if status not in {None, "completed"} and not self.preserve_incomplete:
+            raise RuntimeError(f"response ended with status {status!r}")
         output_items = [item.model_dump(mode="json", exclude_none=True) for item in response.output]
-        metadata: dict[str, Any] = {}
+        metadata: dict[str, Any] = {
+            "raw_response": response.model_dump(mode="json", exclude_none=True),
+        }
         if status is not None:
             metadata["status"] = status
         if response.usage is not None:

@@ -1,0 +1,76 @@
+{
+  "schema_version": "function-calling-verification-v1",
+  "verified_at": "2026-09-11T08:22:47Z",
+  "status": "passed",
+  "endpoint": "http://127.0.0.1:8000/v1",
+  "model": {
+    "repository": "Qwen/Qwen3.8-27B-FP8",
+    "served_name": "Qwen3.8-27B-FP8",
+    "revision": "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a"
+  },
+  "server": {
+    "vllm_version": "0.29.0",
+    "system_fingerprint": "vllm-0.29.0-4dd13d08",
+    "image_digest": "sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1",
+    "reasoning_parser": "qwen3",
+    "auto_tool_choice": true,
+    "tool_call_parser": "qwen3_coder"
+  },
+  "client": {
+    "interface": "OpenAI-compatible Chat Completions",
+    "tool_choice": "auto",
+    "temperature": 0,
+    "enable_thinking": false
+  },
+  "offered_repository_tools": [
+    "image_preprocess",
+    "ocr",
+    "pdf_parse",
+    "pdf_render"
+  ],
+  "scenarios": [
+    {
+      "name": "tool-needed",
+      "status": "completed",
+      "selected_tools": [
+        "image_preprocess"
+      ],
+      "tool_call_id": "chatcmpl-tool-a321d4c08aa356ed",
+      "llm_call_count": 2,
+      "tool_call_count": 1,
+      "tool_execution_success": true,
+      "tool_output_consumed_by_follow_up_llm": true,
+      "end_to_end_latency_sec": 7.465218,
+      "trace_path": "data/function_calling_verification/20260911T082239Z/tool-needed/trace.json",
+      "trace_sha256": "6146e8bde36d676a1f9ff1efcfd3b184062770352dc897887fc36a224c7bb640",
+      "output_artifact_sha256": "f8592afb6a4b04cadc31df779ddc0cf4ba2f1030a29ce8c3d94521d5e25a293b"
+    },
+    {
+      "name": "no-tool-needed",
+      "status": "completed",
+      "selected_tools": [],
+      "llm_call_count": 1,
+      "tool_call_count": 0,
+      "final_output": "42",
+      "end_to_end_latency_sec": 0.313602,
+      "trace_path": "data/function_calling_verification/20260911T082239Z/no-tool-needed/trace.json",
+      "trace_sha256": "cde3794da26a28d3e88b0904224c55c003b6b515b2ac39ec70fdfdb88c44ac42"
+    }
+  ],
+  "scope": {
+    "verified": [
+      "structured tool_calls parsing",
+      "automatic selection among four repository Tool schemas",
+      "real local image_preprocess execution",
+      "function_call_output round trip",
+      "automatic no-tool decision"
+    ],
+    "not_verified": [
+      "real OCR selection and execution",
+      "real PDF multi-step planning",
+      "parallel tool calls",
+      "Qwen3.5-9B Function Calling",
+      "Volcengine Function Calling"
+    ]
+  }
+}

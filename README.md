@@ -141,3 +141,13 @@ scripts/
 ├── run_first_demo.py
 └── run_pareto.py
 ```
+
+### LLM measurement (Milestone 4.4)
+
+Linux/macOS setup, vLLM/Ark configuration, bounded real sampling and credential-free
+benchmark import are documented in [docs/llm_measurement.md](docs/llm_measurement.md).
+The repository includes 18 real local Qwen3.8-27B-FP8 observations and explicitly
+labeled measured/synthetic profiles; 9B and cloud measurements remain unverified.
+Real Qwen3.8-27B automatic Function Calling can be reproduced with
+`python scripts/verify_function_calling.py`. It exposes all four repository Tool schemas,
+checks selection and execution of `image_preprocess`, and checks an automatic no-Tool decision.

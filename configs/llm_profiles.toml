@@ -1,22 +1,100 @@
-# Public model metadata only. API key values must stay in environment variables.
+# Public deployment catalog. Throughput, energy and quality are not yet calibrated.
+[[llm_instances]]
+llm_id = "local-qwen38-27b"
+provider = "vllm"
+model = "Qwen3.8-27B-FP8"
+capabilities = ["function_calling"]
+node_id = "linux-gpu-0"
+platform = "linux"
+executor_type = "openai_chat"
+base_url = "http://127.0.0.1:8000/v1"
+model_size_b = 27
+context_window_tokens = 65536
+max_concurrency = 4
+[llm_instances.deployment_config]
+requires_api_key = false
+base_url_env = "QWEN27B_BASE_URL"
+[llm_instances.deployment_config.model_parameters]
+temperature = 0
+[llm_instances.deployment_config.model_parameters.extra_body.chat_template_kwargs]
+enable_thinking = false
+[llm_instances.metadata]
+source_kind = "deployment_configuration"
+model_repository = "Qwen/Qwen3.8-27B-FP8"
+model_revision = "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a"
+vllm_version = "0.29.0"
+vllm_image_digest = "sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1"
+function_calling_verified = true
+function_calling_verified_at = "2026-09-11T08:22:47Z"
+function_calling_verification = "tool_choice=auto; four repository Tools offered; image_preprocess selected and executed; no-tool request called none; Tool output consumed by second LLM turn"
+reasoning_parser = "qwen3"
+tool_call_parser = "qwen3_coder"
+deployment_command = "vllm/vllm-openai@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1 --model Qwen/Qwen3.8-27B-FP8 --served-model-name Qwen3.8-27B-FP8 --tensor-parallel-size 1 --max-model-len 65536 --max-num-seqs 4 --gpu-memory-utilization 0.92 --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder"
+
+[[llm_instances]]
+llm_id = "local-qwen35-9b"
+provider = "vllm"
+model = "Qwen3.5-9B"
+node_id = "linux-gpu-9b"
+platform = "linux"
+executor_type = "openai_chat"
+base_url = "http://127.0.0.1:8001/v1"
+model_size_b = 9
+context_window_tokens = 32768
+max_concurrency = 1
+[llm_instances.deployment_config]
+requires_api_key = false
+enabled = false
+base_url_env = "QWEN9B_BASE_URL"
+[llm_instances.deployment_config.model_parameters]
+temperature = 0
+[llm_instances.deployment_config.model_parameters.extra_body.chat_template_kwargs]
+enable_thinking = false
+[llm_instances.metadata]
+source_kind = "deployment_configuration"
+model_repository = "Qwen/Qwen3.5-9B"
+function_calling_verified = false
+deployment_status = "planned; enable after deployment; context limit is a proposed server setting"
 
 [[llm_instances]]
 llm_id = "online-doubao"
 provider = "volcengine"
 model = "doubao-seed-2-0-lite-260428"
+# Preserve the existing declared capability; live verification remains false.
+capabilities = ["function_calling"]
 node_id = "volcengine-ark-api"
 platform = "cloud"
-executor_type = "openai_responses"
+executor_type = "openai_chat"
 base_url = "https://ark.cn-beijing.volces.com/api/v3"
-capabilities = ["function_calling"]
+context_window_tokens = 8192
 max_concurrency = 4
 secret_env_vars = ["ARK_API_KEY"]
-
 [llm_instances.deployment_config]
 requires_api_key = true
-
 [llm_instances.deployment_config.model_parameters]
 temperature = 0
+[llm_instances.metadata]
+source_kind = "deployment_configuration"
+function_calling_verified = false
+context_limit_note = "conservative experiment limit, not provider maximum"
 
-# The OpenAI Python SDK is used only as a client for Volcengine's
-# Responses-compatible endpoint. ARK_API_KEY remains in the environment.
+[[llm_instances]]
+llm_id = "online-ark-secondary"
+provider = "volcengine"
+model = "SET_ARK_SECONDARY_MODEL"
+node_id = "volcengine-ark-api"
+platform = "cloud"
+executor_type = "openai_chat"
+base_url = "https://ark.cn-beijing.volces.com/api/v3"
+context_window_tokens = 8192
+max_concurrency = 4
+secret_env_vars = ["ARK_API_KEY"]
+[llm_instances.deployment_config]
+requires_api_key = true
+model_env = "ARK_SECONDARY_MODEL"
+[llm_instances.deployment_config.model_parameters]
+temperature = 0
+[llm_instances.metadata]
+source_kind = "deployment_configuration"
+function_calling_verified = false
+context_limit_note = "conservative experiment limit, not provider maximum"
