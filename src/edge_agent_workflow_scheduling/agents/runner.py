@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from math import isfinite
 from threading import Lock, Semaphore
 from time import monotonic
-from typing import Literal, TypeAlias
+from typing import Any, Literal, TypeAlias
 from uuid import uuid4
 
 from edge_agent_workflow_scheduling.agents.function_calling import (
@@ -135,6 +135,7 @@ class AgentRunner:
         *,
         task_id: str,
         run_id: str | None = None,
+        call_metadata: dict[str, Any] | None = None,
     ) -> ScheduledAgentExecution:
         """Execute one dynamic Agent run and always return a terminal state."""
 
@@ -142,6 +143,9 @@ class AgentRunner:
         _validate_non_empty(task_id, "task_id")
         if run_id is not None:
             _validate_non_empty(run_id, "run_id")
+        if call_metadata is not None and not isinstance(call_metadata, dict):
+            raise ValueError("call_metadata must be a JSON object")
+        resolved_call_metadata = deepcopy(call_metadata or {})
         if not self.call_queue.is_empty():
             raise ValueError("AgentRunner requires an empty call_queue at run start")
 
@@ -184,6 +188,7 @@ class AgentRunner:
                 input_items=deepcopy(agent_run.conversation_items),
                 required_capabilities=list(self.llm_required_capabilities),
                 model_name=self.model_name,
+                metadata=deepcopy(resolved_call_metadata),
             )
             agent_run.transition_to(AgentRunStatus.WAITING_FOR_LLM)
             llm_record = self._run_llm_call(llm_call, context)
@@ -252,6 +257,7 @@ class AgentRunner:
                     )
                     return finish()
                 seen_function_call_ids.add(tool_call.call_id)
+                tool_call.metadata.update(deepcopy(resolved_call_metadata))
                 round_calls.append(tool_call)
             tool_call_count += len(round_calls)
 

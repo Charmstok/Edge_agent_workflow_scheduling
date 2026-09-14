@@ -79,8 +79,6 @@ instance/
 # Sphinx documentation
 docs/_build/
 docs/*
-!docs/project_plan.md
-!docs/llm_measurement.md
 
 # PyBuilder
 .pybuilder/

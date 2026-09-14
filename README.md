@@ -151,3 +151,30 @@ labeled measured/synthetic profiles; 9B and cloud measurements remain unverified
 Real Qwen3.8-27B automatic Function Calling can be reproduced with
 `python scripts/verify_function_calling.py`. It exposes all four repository Tool schemas,
 checks selection and execution of `image_preprocess`, and checks an automatic no-Tool decision.
+
+### Task quality calibration (Milestone 4.5)
+
+Task scoring is defined by the versioned rules in
+`configs/workload_milestone_4_1_v1.json`. The quality sampler runs the same Agent prompt,
+Tool set, and budget over calibration and validation samples, then writes raw scores,
+confidence intervals, a holdout report, and loadable LLM profiles:
+
+```bash
+export PYTHONPATH="$PWD/src"
+python scripts/sample_quality.py --output-dir data/quality_sampling
+```
+
+For existing traces, run only the deterministic scoring and aggregation step:
+
+```bash
+python scripts/score_quality.py \
+  --trace-root data/quality_sampling/<run-timestamp> \
+  --output-dir data/quality_scoring
+```
+
+`data/quality_sampling/<run-timestamp>/quality/quality_report.json` keeps calibration
+quality separate from validation quality. The generated
+`configs/llm_quality_profiles_v1.json` contains the calibrated Qwen3.8-27B task profile;
+models without measured coverage retain an empty `quality_profile` and are not given a
+silent default score. The evaluator reports both selected-profile quality and the final
+task score of each AgentRun.

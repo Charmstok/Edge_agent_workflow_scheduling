@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "quality_profile_version": "document-agent-quality-v1",
+  "scoring_registry_version": "task-quality-scorers-v1",
+  "workload_config": "workload_milestone_4_1_v1.json",
+  "llm_catalog": "llm_profiles.toml",
+  "system_prompt_suffix": "Treat a successful Tool result as evidence for the final answer. Call each extraction Tool at most once for each original input artifact. Never pass a Tool-produced text_uri or output artifact back to the same extraction Tool. Use the returned text field directly. After all required original artifacts have succeeded, answer immediately with only the requested JSON object, with no explanation and no markdown fence.",
+  "system_prompt_version": "document-agent-quality-v1",
+  "llm_ids": [
+    "local-qwen38-27b",
+    "local-qwen35-9b",
+    "online-doubao",
+    "online-ark-secondary"
+  ],
+  "repeats": 1,
+  "max_output_tokens": 512,
+  "minimum_calibration_samples_per_task_type": 3,
+  "confidence_z": 1.96,
+  "missing_task_type_policy": "error",
+  "allow_default_quality": false,
+  "default_quality": null
+}

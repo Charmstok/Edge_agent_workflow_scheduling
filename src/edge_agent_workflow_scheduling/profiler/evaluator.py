@@ -16,6 +16,7 @@ from edge_agent_workflow_scheduling.profiler.models import (
     CallTrace,
     TraceBundle,
 )
+from edge_agent_workflow_scheduling.profiler.quality import TaskScore
 
 EvaluationLevel = Literal["call", "agent_run", "experiment"]
 
@@ -64,6 +65,11 @@ class AgentRunEvaluation:
     average_profile_quality: float | None
     profile_quality_count: int
     profile_quality_coverage: float
+    task_type: str | None
+    final_task_score: float | None
+    final_task_raw_score: float | None
+    final_task_score_source: str
+    scoring_rule: str | None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -88,6 +94,11 @@ class ExperimentEvaluation:
     average_profile_quality: float | None
     profile_quality_count: int
     profile_quality_coverage: float
+    average_final_task_score: float | None
+    final_task_score_count: int
+    final_task_score_coverage: float
+    final_task_score_by_task_type: dict[str, float]
+    quality_objective_source: str
     success_rate: float
     throughput_runs_per_sec: float
     evaluation_window_sec: float
@@ -121,6 +132,11 @@ class ExperimentEvaluation:
                 "average_profile_quality": self.average_profile_quality,
                 "profile_quality_count": self.profile_quality_count,
                 "profile_quality_coverage": self.profile_quality_coverage,
+                "average_final_task_score": self.average_final_task_score,
+                "final_task_score_count": self.final_task_score_count,
+                "final_task_score_coverage": self.final_task_score_coverage,
+                "final_task_score_by_task_type": dict(self.final_task_score_by_task_type),
+                "quality_objective_source": self.quality_objective_source,
                 "success_rate": self.success_rate,
                 "throughput_runs_per_sec": self.throughput_runs_per_sec,
                 "evaluation_window_sec": self.evaluation_window_sec,
@@ -170,17 +186,25 @@ class ExperimentEvaluation:
         ]
 
 
-def evaluate_trace_bundle(trace: TraceBundle) -> ExperimentEvaluation:
+def evaluate_trace_bundle(
+    trace: TraceBundle,
+    *,
+    task_score: TaskScore | None = None,
+) -> ExperimentEvaluation:
     """Evaluate one complete trace without executing or modifying it."""
 
-    return evaluate_traces([trace])
+    return evaluate_traces([trace], task_scores=[task_score] if task_score else None)
 
 
-def evaluate_trace_path(path: str | Path) -> ExperimentEvaluation:
+def evaluate_trace_path(
+    path: str | Path,
+    *,
+    task_score: TaskScore | None = None,
+) -> ExperimentEvaluation:
     """Load and evaluate one JSON trace bundle."""
 
     trace = TraceBundle.from_json(Path(path).read_text(encoding="utf-8"))
-    return evaluate_trace_bundle(trace)
+    return evaluate_trace_bundle(trace, task_score=task_score)
 
 
 def write_evaluation_artifacts(
@@ -200,7 +224,11 @@ def write_evaluation_artifacts(
     evaluation.to_csv(directory / "experiment.csv", level="experiment")
 
 
-def evaluate_traces(traces: list[TraceBundle]) -> ExperimentEvaluation:
+def evaluate_traces(
+    traces: list[TraceBundle],
+    *,
+    task_scores: list[TaskScore] | None = None,
+) -> ExperimentEvaluation:
     """Aggregate multiple traces from one comparable experiment."""
 
     if not traces:
@@ -208,6 +236,15 @@ def evaluate_traces(traces: list[TraceBundle]) -> ExperimentEvaluation:
     dataset_ids = {trace.manifest.dataset_id for trace in traces}
     if len(dataset_ids) != 1:
         raise ValueError("all traces must use the same dataset_id")
+    score_by_run: dict[str, TaskScore] = {}
+    for score in task_scores or []:
+        if score.run_id in score_by_run:
+            raise ValueError(f"duplicate task score for run_id {score.run_id!r}")
+        score_by_run[score.run_id] = score
+    run_ids = {trace.run.run_id for trace in traces}
+    unknown_scores = set(score_by_run) - run_ids
+    if unknown_scores:
+        raise ValueError(f"task scores contain unknown run IDs: {sorted(unknown_scores)}")
 
     call_evaluations: list[CallEvaluation] = []
     agent_runs: list[AgentRunEvaluation] = []
@@ -217,7 +254,13 @@ def evaluate_traces(traces: list[TraceBundle]) -> ExperimentEvaluation:
             _evaluate_call(call, trace) for call in trace.calls
         ]
         call_evaluations.extend(evaluated_calls)
-        agent_runs.append(_evaluate_agent_run(trace.run, evaluated_calls))
+        agent_runs.append(
+            _evaluate_agent_run(
+                trace.run,
+                evaluated_calls,
+                task_score=score_by_run.get(trace.run.run_id),
+            )
+        )
         for call in evaluated_calls:
             target_selection_counts[call.selected_target] = (
                 target_selection_counts.get(call.selected_target, 0) + 1
@@ -233,6 +276,23 @@ def evaluate_traces(traces: list[TraceBundle]) -> ExperimentEvaluation:
     ]
     total_call_count = len(call_evaluations)
     quality_coverage = len(quality_values) / total_call_count if total_call_count else 0.0
+    final_task_scores = [
+        run.final_task_score for run in agent_runs if run.final_task_score is not None
+    ]
+    final_score_coverage = len(final_task_scores) / len(agent_runs)
+    scores_by_task_type: dict[str, list[float]] = {}
+    for run in agent_runs:
+        if run.task_type is not None and run.final_task_score is not None:
+            scores_by_task_type.setdefault(run.task_type, []).append(run.final_task_score)
+    if len(final_task_scores) == len(agent_runs):
+        objective_quality = fmean(final_task_scores)
+        quality_objective_source = "final_task_score"
+    elif quality_values:
+        objective_quality = fmean(quality_values)
+        quality_objective_source = "selected_profile"
+    else:
+        objective_quality = None
+        quality_objective_source = "unavailable"
     window_sec = _evaluation_window_sec(traces)
     load_imbalance_by_group = _load_imbalance_by_group(traces, call_evaluations)
     aggregate_objectives = {
@@ -247,7 +307,7 @@ def evaluate_traces(traces: list[TraceBundle]) -> ExperimentEvaluation:
             if load_imbalance_by_group
             else 0.0
         ),
-        "quality": fmean(quality_values) if quality_values else None,
+        "quality": objective_quality,
     }
     weighted_cost = _aggregate_weighted_cost(traces, aggregate_objectives)
     return ExperimentEvaluation(
@@ -268,6 +328,13 @@ def evaluate_traces(traces: list[TraceBundle]) -> ExperimentEvaluation:
         average_profile_quality=fmean(quality_values) if quality_values else None,
         profile_quality_count=len(quality_values),
         profile_quality_coverage=quality_coverage,
+        average_final_task_score=(fmean(final_task_scores) if final_task_scores else None),
+        final_task_score_count=len(final_task_scores),
+        final_task_score_coverage=final_score_coverage,
+        final_task_score_by_task_type={
+            task_type: fmean(values) for task_type, values in sorted(scores_by_task_type.items())
+        },
+        quality_objective_source=quality_objective_source,
         success_rate=sum(run.success for run in agent_runs) / len(agent_runs),
         throughput_runs_per_sec=len(agent_runs) / window_sec,
         evaluation_window_sec=window_sec,
@@ -378,7 +445,13 @@ def _evaluate_call(call: CallTrace, trace: TraceBundle) -> CallEvaluation:
 def _evaluate_agent_run(
     run: AgentRunTrace,
     calls: list[CallEvaluation],
+    *,
+    task_score: TaskScore | None = None,
 ) -> AgentRunEvaluation:
+    if task_score is not None and (
+        task_score.run_id != run.run_id or task_score.task_id != run.task_id
+    ):
+        raise ValueError("task score does not match AgentRun")
     qualities = [call.profile_quality for call in calls if call.profile_quality is not None]
     return AgentRunEvaluation(
         run_id=run.run_id,
@@ -394,6 +467,17 @@ def _evaluate_agent_run(
         average_profile_quality=fmean(qualities) if qualities else None,
         profile_quality_count=len(qualities),
         profile_quality_coverage=len(qualities) / len(calls) if calls else 0.0,
+        task_type=task_score.task_type if task_score is not None else None,
+        final_task_score=(task_score.normalized_score if task_score is not None else None),
+        final_task_raw_score=(task_score.raw_score if task_score is not None else None),
+        final_task_score_source=(
+            task_score.score_source if task_score is not None else "unavailable"
+        ),
+        scoring_rule=(
+            f"{task_score.scoring_rule_name}:{task_score.scoring_rule_version}"
+            if task_score is not None
+            else None
+        ),
     )
 
 
