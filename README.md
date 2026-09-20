@@ -57,6 +57,39 @@ python scripts/sample_tools.py
 
 The sampler records timing distributions, throughput, success/failure counts, queue depth, host inventory, process-tree CPU/RSS samples, and explicit unavailable GPU metrics.
 
+Version-controlled experiment inputs and assumptions live in `configs/`. All generated
+samples, imported benchmarks, traces, fitted profiles, reports, and demo artifacts live in
+`data/`, which is intentionally excluded from Git.
+
+### Latency and energy profile fitting
+
+Collect the bounded local calibration matrix, then fit bucketed Tool and LLM profiles from
+the saved observations:
+
+```bash
+PYTHONPATH=src python scripts/sample_tools.py \
+  --config configs/tool_profile_sampling_v1.json \
+  --output-dir data/tool_sampling
+
+PYTHONPATH=src python scripts/fit_profiles.py \
+  --tool-sampling-run data/tool_sampling/<sampling-run> \
+  --llm-benchmark data/llm_sampling/qwen38-27b-local-20260911/benchmark.json \
+  --profile-version arch-linux-calibrated-v1 \
+  --synthetic-energy-config configs/synthetic_energy_profiles_v1.json \
+  --output data/profile_calibration/arch-linux-calibrated-v1/profiles.json \
+  --overwrite
+```
+
+The generated profile catalog is directly loadable by the existing replay/baseline resource
+loader. Calibrated profiles use exact task/input-size/concurrency buckets and reject calls
+outside their declared scope unless the fit command explicitly selects aggregate fallback.
+Local energy is currently unavailable, so measured profiles leave `energy_profile` empty and
+energy-dependent policies reject them. Synthetic energy is confined to the labeled logical
+replica and records its assumptions separately.
+For a new device or profile version, repeat `--tool-sampling-run` and choose a new output;
+the host digest is part of every Tool profile ID. Existing catalogs are not overwritten unless
+`--overwrite` is explicitly supplied.
+
 ### Agent demos
 
 Run all Milestone 2 demos. Without `ARK_API_KEY`, the online demo is skipped while offline, multi-Tool, and replay verification still complete:
@@ -136,23 +169,25 @@ src/edge_agent_workflow_scheduling/
 └── workers/      # local real-Tool execution
 
 scripts/
+├── fit_profiles.py
 ├── run_agent_demos.py
 ├── run_baselines.py
 ├── run_first_demo.py
 └── run_pareto.py
 ```
 
-### LLM measurement (Milestone 4.4)
+### LLM measurement
 
-Linux/macOS setup, vLLM/Ark configuration, bounded real sampling and credential-free
-benchmark import are documented in [docs/llm_measurement.md](docs/llm_measurement.md).
-The repository includes 18 real local Qwen3.8-27B-FP8 observations and explicitly
-labeled measured/synthetic profiles; 9B and cloud measurements remain unverified.
+vLLM/Ark deployment inputs are defined in `configs/llm_profiles.toml`; bounded real
+sampling and credential-free benchmark import are provided by `scripts/sample_llms.py`.
+The local experiment data includes 18 real Qwen3.8-27B-FP8 observations and explicitly
+labeled measured/synthetic profiles under `data/`; 9B and cloud measurements remain
+unverified. These generated artifacts are not committed.
 Real Qwen3.8-27B automatic Function Calling can be reproduced with
 `python scripts/verify_function_calling.py`. It exposes all four repository Tool schemas,
 checks selection and execution of `image_preprocess`, and checks an automatic no-Tool decision.
 
-### Task quality calibration (Milestone 4.5)
+### Task quality calibration
 
 Task scoring is defined by the versioned rules in
 `configs/workload_milestone_4_1_v1.json`. The quality sampler runs the same Agent prompt,
@@ -174,7 +209,8 @@ python scripts/score_quality.py \
 
 `data/quality_sampling/<run-timestamp>/quality/quality_report.json` keeps calibration
 quality separate from validation quality. The generated
-`configs/llm_quality_profiles_v1.json` contains the calibrated Qwen3.8-27B task profile;
+`data/quality_scoring/document-agent-quality-v1/profiles.json` contains the calibrated
+Qwen3.8-27B task profile;
 models without measured coverage retain an empty `quality_profile` and are not given a
 silent default score. The evaluator reports both selected-profile quality and the final
 task score of each AgentRun.

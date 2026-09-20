@@ -6,7 +6,7 @@ This module provides real local computation for document-oriented Agent workload
 
 An Agent decides which operation to request, while the scheduler selects its execution target. An illustrative task is to read an invoice image, extract a project budget from a PDF, and determine whether the invoice exceeds that budget. The Agent may request image preprocessing, OCR, and PDF extraction before reasoning over the returned evidence. This example describes task semantics, not a fixed Tool-call sequence or enforced DAG.
 
-The scheduling problem includes both the Tool calls and the LLM calls that produce or consume them. The intended deployment includes two approximately 30B LLM instances on an Ubuntu server and approximately 7B instances on other boards. These are deployment targets, not devices evaluated by the local Tool demo.
+The scheduling problem includes both the Tool calls and the LLM calls that produce or consume them. The intended deployment includes two approximately 30B LLM instances on an Arch Linux server and approximately 7B instances on other boards. These are deployment targets, not devices evaluated by the local Tool demo.
 
 ## 2. Tool Descriptions
 
@@ -187,9 +187,9 @@ For paper writing, Section 2 describes workload rationale and implemented operat
 - Standalone Tool time does not replace Agent end-to-end latency or LLM queueing time.
 - Timing metadata alone does not establish energy consumption or final-answer quality.
 
-## 6. MacBook Sampling Protocol
+## 6. Local Sampling Protocol
 
-`configs/tool_sampling_v1.json` defines the reproducible local sampling matrix. Each requested Tool is evaluated at `small`, `medium`, and `large` input scales and at concurrency levels 1 and 2. The matrix uses one cold-start call, one warm-up call per worker, and three retained measurement calls per worker. These counts are configuration values rather than assumptions embedded in the sampler.
+`configs/tool_sampling_v1.json` defines the reproducible local sampling matrix. Each requested Tool is evaluated at `small`, `medium`, and `large` input scales and at concurrency levels 1 and 2. The matrix uses one cold-start call, one warm-up call per worker, and three retained measurement calls per worker. These counts are configuration values rather than assumptions embedded in the sampler. Host identity and platform details are captured at runtime; the current calibration target is Arch Linux/Manjaro.
 
 Run the matrix from the repository root:
 
@@ -236,14 +236,14 @@ Install Tesseract separately on the execution node:
 # macOS
 brew install tesseract
 
-# Ubuntu / Debian-based edge nodes
-sudo apt-get install tesseract-ocr tesseract-ocr-eng
+# Arch Linux / Manjaro edge nodes
+sudo pacman -S --needed tesseract tesseract-data-eng
 
 # macOS PDF rendering
 brew install poppler
 
-# Ubuntu / Debian-based PDF rendering
-sudo apt-get install poppler-utils
+# Arch Linux / Manjaro PDF rendering
+sudo pacman -S --needed poppler
 ```
 
 Other OCR languages require their language data. OCR, PDF parsing, and PDF rendering dependencies are optional for the existing image-only and profile-based execution paths.

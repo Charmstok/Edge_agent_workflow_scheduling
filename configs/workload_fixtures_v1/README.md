@@ -101,7 +101,7 @@ The task definition, Tool schema, reference answer, scale metadata, and artifact
 
 These fixtures support controlled experiments in which an Agent may repeatedly perform LLM inference and invoke external Tools. The same task inputs can be evaluated under multiple resource configurations, including:
 
-- larger local LLM instances, such as approximately 30B-parameter models on Ubuntu;
+- larger local LLM instances, such as approximately 30B-parameter models on Linux;
 - smaller LLM instances, such as approximately 7B-parameter models on other edge boards;
 - multiple replicas of image, OCR, or PDF Tools;
 - profile-based execution and later real execution adapters.

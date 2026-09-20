@@ -40,8 +40,6 @@ pip-log.txt
 pip-delete-this-directory.txt
 
 # Unit test / coverage reports
-/tests/*
-
 htmlcov/
 .tox/
 .nox/
@@ -56,8 +54,10 @@ coverage.xml
 .pytest_cache/
 cover/
 
-# Local generated demo data and traces
-data/
+# Generated experiment artifacts
+# Keep reproducible inputs in configs/; samplers, benchmarks, traces, fitted
+# profiles, reports, and demo outputs belong under data/.
+/data/
 
 # Translations
 *.mo
@@ -76,9 +76,8 @@ instance/
 # Scrapy stuff:
 .scrapy
 
-# Sphinx documentation
-docs/_build/
-docs/*
+# Local project documentation
+/docs/
 
 # PyBuilder
 .pybuilder/

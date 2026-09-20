@@ -13,6 +13,8 @@ from edge_agent_workflow_scheduling.resources import (
     ToolReplicaProfile,
     ToolReplicaSnapshot,
     ToolReplicaState,
+    resolve_llm_tokens_per_sec,
+    resolve_tool_execution_time_sec,
 )
 
 CallKind = Literal["llm", "tool"]
@@ -45,7 +47,7 @@ class SchedulingCandidate:
             and isinstance(self.profile, ToolReplicaProfile)
             and isinstance(self.state, ToolReplicaState)
         ):
-            return _estimate_tool_finish_time_sec(self.profile, self.state)
+            return _estimate_tool_finish_time_sec(call, self.profile, self.state)
 
         msg = "candidate state does not match call type"
         raise TypeError(msg)
@@ -122,23 +124,24 @@ def _estimate_llm_finish_time_sec(
     queue_unit_sec = state.avg_latency_sec if state.avg_latency_sec > 0 else 1.0
     queue_delay_sec = state.queue_len * queue_unit_sec
     total_tokens = call.input_tokens + call.estimated_output_tokens
-    profiled_tokens_per_sec = profile.token_profile.get("tokens_per_sec", 0.0)
-    tokens_per_sec = state.tokens_per_sec or profiled_tokens_per_sec
-    inference_time_sec = (
-        total_tokens / tokens_per_sec
-        if tokens_per_sec > 0
-        else float(
-            "inf",
-        )
+    tokens_per_sec = (
+        state.tokens_per_sec
+        if state.tokens_per_sec > 0
+        else resolve_llm_tokens_per_sec(profile, call).value
     )
+    inference_time_sec = total_tokens / tokens_per_sec
     return queue_delay_sec + inference_time_sec
 
 
 def _estimate_tool_finish_time_sec(
+    call: ToolCall,
     profile: ToolReplicaProfile,
     state: ToolReplicaState,
 ) -> float:
     network_latency_sec = state.network_latency_ms / 1000
-    profiled_execution_sec = profile.latency_profile.get("execution_time_sec", 0.0)
-    execution_time_sec = state.avg_execution_time_sec or profiled_execution_sec
+    execution_time_sec = (
+        state.avg_execution_time_sec
+        if state.avg_execution_time_sec > 0
+        else resolve_tool_execution_time_sec(profile, call).value
+    )
     return state.queue_len * execution_time_sec + network_latency_sec + execution_time_sec

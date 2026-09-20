@@ -1,0 +1,8 @@
+{
+  "version": "synthetic-energy-v1",
+  "tool_joules_per_call": {
+    "image_preprocess": 0.2
+  },
+  "llm_joules_per_token": {},
+  "assumptions": "Offline scheduling contrast only. The configured constants are synthetic, are not measurements from the local Arch Linux host, and must not be used for energy calibration claims."
+}

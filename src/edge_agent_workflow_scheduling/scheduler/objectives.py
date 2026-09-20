@@ -11,9 +11,12 @@ from edge_agent_workflow_scheduling.resources import (
     LLMInstanceProfile,
     LLMInstanceState,
     MissingQualityProfileError,
+    ProfileLookupError,
     ToolReplicaProfile,
     ToolReplicaState,
     profiled_quality,
+    resolve_llm_joules_per_token,
+    resolve_tool_joules_per_call,
 )
 from edge_agent_workflow_scheduling.scheduler.types import SchedulingCandidate
 
@@ -162,18 +165,16 @@ def estimate_energy_joules(
 
     profile = candidate.profile
     if isinstance(call, LLMCall) and isinstance(profile, LLMInstanceProfile):
-        if "joules_per_token" not in profile.energy_profile:
-            raise MissingObjectiveProfileError(
-                f"target {candidate.target_id!r} has no joules_per_token profile"
-            )
         total_tokens = call.input_tokens + call.estimated_output_tokens
-        return total_tokens * profile.energy_profile["joules_per_token"]
+        try:
+            return total_tokens * resolve_llm_joules_per_token(profile, call).value
+        except ProfileLookupError as exc:
+            raise MissingObjectiveProfileError(str(exc)) from exc
     if isinstance(call, ToolCall) and isinstance(profile, ToolReplicaProfile):
-        if "joules_per_call" not in profile.energy_profile:
-            raise MissingObjectiveProfileError(
-                f"target {candidate.target_id!r} has no joules_per_call profile"
-            )
-        return profile.energy_profile["joules_per_call"]
+        try:
+            return resolve_tool_joules_per_call(profile, call).value
+        except ProfileLookupError as exc:
+            raise MissingObjectiveProfileError(str(exc)) from exc
     raise TypeError("candidate profile does not match call type")
 
 
@@ -183,40 +184,15 @@ def estimate_latency_sec(
 ) -> float:
     """Estimate finish time and reject missing latency/throughput profiles."""
 
-    _require_latency_profile(call, candidate)
-    latency_sec = candidate.estimate_finish_time_sec(call)
+    try:
+        latency_sec = candidate.estimate_finish_time_sec(call)
+    except ProfileLookupError as exc:
+        raise MissingObjectiveProfileError(str(exc)) from exc
     if not isfinite(latency_sec):
         raise MissingObjectiveProfileError(
             f"target {candidate.target_id!r} has no usable latency/throughput profile"
         )
     return latency_sec
-
-
-def _require_latency_profile(
-    call: SchedulableCall,
-    candidate: SchedulingCandidate,
-) -> None:
-    profile = candidate.profile
-    state = candidate.state
-    if isinstance(call, LLMCall) and isinstance(profile, LLMInstanceProfile):
-        measured_throughput = (
-            state.tokens_per_sec if isinstance(state, LLMInstanceState) else 0.0
-        )
-        if measured_throughput <= 0 and profile.token_profile.get("tokens_per_sec", 0.0) <= 0:
-            raise MissingObjectiveProfileError(
-                f"target {candidate.target_id!r} has no positive tokens_per_sec profile"
-            )
-        return
-    if isinstance(call, ToolCall) and isinstance(profile, ToolReplicaProfile):
-        measured_execution = (
-            state.avg_execution_time_sec if isinstance(state, ToolReplicaState) else 0.0
-        )
-        if measured_execution <= 0 and "execution_time_sec" not in profile.latency_profile:
-            raise MissingObjectiveProfileError(
-                f"target {candidate.target_id!r} has no execution_time_sec profile"
-            )
-        return
-    raise TypeError("candidate profile does not match call type")
 
 
 def _projected_load_imbalance(

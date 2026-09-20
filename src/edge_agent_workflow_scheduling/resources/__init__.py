@@ -15,6 +15,16 @@ from edge_agent_workflow_scheduling.resources.models import (
     ToolReplicaProfile,
     ToolReplicaState,
 )
+from edge_agent_workflow_scheduling.resources.profile_lookup import (
+    ProfileLookupError,
+    ProfileMetricUnavailableError,
+    ProfileScopeError,
+    ResolvedProfileMetric,
+    resolve_llm_joules_per_token,
+    resolve_llm_tokens_per_sec,
+    resolve_tool_execution_time_sec,
+    resolve_tool_joules_per_call,
+)
 from edge_agent_workflow_scheduling.resources.registry import (
     LLMInstanceSnapshot,
     ResourceRegistry,
@@ -28,6 +38,10 @@ __all__ = [
     "LLMInstanceSnapshot",
     "LLMInstanceState",
     "MissingQualityProfileError",
+    "ProfileLookupError",
+    "ProfileMetricUnavailableError",
+    "ProfileScopeError",
+    "ResolvedProfileMetric",
     "ResourceRegistry",
     "ResourceSnapshot",
     "SchedulingConstraints",
@@ -36,6 +50,10 @@ __all__ = [
     "ToolReplicaSnapshot",
     "ToolReplicaState",
     "profiled_quality",
+    "resolve_llm_joules_per_token",
+    "resolve_llm_tokens_per_sec",
     "resolve_scheduling_constraints",
+    "resolve_tool_execution_time_sec",
+    "resolve_tool_joules_per_call",
     "task_type_for_call",
 ]

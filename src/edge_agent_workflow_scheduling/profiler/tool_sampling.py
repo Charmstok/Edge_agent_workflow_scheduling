@@ -657,11 +657,12 @@ def _build_executor(
         version = tool.implementation_version
     registry = ToolRegistry()
     registry.register(tool)
+    system_name = platform.system().casefold()
     profile = ToolReplicaProfile(
-        replica_id=f"{tool_name}-macbook-local",
+        replica_id=f"{tool_name}-{system_name}-local",
         tool_name=tool_name,
-        node_id="macbook-local",
-        platform=platform.platform(),
+        node_id=f"{system_name}-local",
+        platform=system_name,
         implementation_version=version,
         executor_type="local",
         max_concurrency=concurrency,
@@ -670,6 +671,7 @@ def _build_executor(
             "latency_profile": "uncalibrated",
             "energy": "unavailable",
             "quality": "uncalibrated",
+            "platform_details": platform.platform(),
         },
     )
     return LocalToolExecutor(LocalWorker(profile, registry))

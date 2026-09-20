@@ -197,7 +197,7 @@ def _create_workers(output_dir: Path) -> dict[str, LocalWorker]:
             _create_tool_registry(output_dir),
         ),
         LocalWorker(
-            _create_tool_replica_profile("worker_local_2", "ubuntu_logical", 0.006),
+            _create_tool_replica_profile("worker_local_2", "linux_logical", 0.006),
             _create_tool_registry(output_dir),
             artificial_delay_sec=0.001,
         ),
@@ -214,7 +214,7 @@ def _create_tool_replica_profile(
         replica_id=replica_id,
         tool_name="image_preprocess",
         node_id=node_id,
-        platform="macos" if node_id == "macbook_local" else "ubuntu",
+        platform="macos" if node_id == "macbook_local" else "linux",
         implementation_version="pillow-12.3.0",
         executor_type="local",
         capabilities=["grayscale", "resize", "blur", "threshold", "edge_detect"],

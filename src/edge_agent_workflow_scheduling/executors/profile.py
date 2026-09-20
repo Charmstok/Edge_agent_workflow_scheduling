@@ -13,7 +13,16 @@ from edge_agent_workflow_scheduling.executors.base import (
     tool_call_error,
     validate_timeout,
 )
-from edge_agent_workflow_scheduling.resources import LLMInstanceProfile, ToolReplicaProfile
+from edge_agent_workflow_scheduling.resources import (
+    LLMInstanceProfile,
+    ProfileLookupError,
+    ProfileMetricUnavailableError,
+    ToolReplicaProfile,
+    resolve_llm_joules_per_token,
+    resolve_llm_tokens_per_sec,
+    resolve_tool_execution_time_sec,
+    resolve_tool_joules_per_call,
+)
 from edge_agent_workflow_scheduling.tools import ToolSpec
 
 
@@ -52,14 +61,16 @@ class ProfileLLMExecutor:
                 "seeded profile LLM failure",
             )
 
-        tokens_per_sec = self.profile.token_profile.get("tokens_per_sec", 0.0)
-        if tokens_per_sec <= 0:
+        try:
+            resolved_rate = resolve_llm_tokens_per_sec(self.profile, llm_call)
+        except ProfileLookupError as exc:
             return _llm_failure(
                 self.profile,
                 llm_call,
                 "invalid_profile",
-                "token_profile.tokens_per_sec must be positive",
+                str(exc),
             )
+        tokens_per_sec = resolved_rate.value
         output_tokens = llm_call.estimated_output_tokens
         total_tokens = llm_call.input_tokens + output_tokens
         inference_time_sec = _sample(total_tokens / tokens_per_sec, self.jitter_ratio, self._rng)
@@ -72,6 +83,7 @@ class ProfileLLMExecutor:
                 inference_time_sec=inference_time_sec,
             )
         output_items = [_message_item(self.output_text)] if self.output_text else []
+        energy_joules, energy_metadata = _llm_energy(self.profile, llm_call)
         return LLMResult(
             llm_call_id=llm_call.llm_call_id,
             llm_id=self.profile.llm_id,
@@ -82,8 +94,16 @@ class ProfileLLMExecutor:
             response_model=self.profile.model,
             output_tokens=output_tokens,
             inference_time_sec=inference_time_sec,
-            energy_joules=(total_tokens * self.profile.energy_profile.get("joules_per_token", 0.0)),
-            metadata={"executor_type": "profile", "seed": self.seed},
+            energy_joules=energy_joules,
+            metadata={
+                "executor_type": "profile",
+                "seed": self.seed,
+                "profile_metric": {
+                    "tokens_per_sec_source": resolved_rate.source,
+                    "tokens_per_sec_bucket_id": resolved_rate.bucket_id,
+                    **energy_metadata,
+                },
+            },
         )
 
 
@@ -112,11 +132,11 @@ class ProfileToolExecutor:
         invalid = tool_call_error(self.profile, tool_call)
         if invalid is not None:
             return _tool_failure(self.profile, tool_call, *invalid)
-        execution_time_sec = _sample(
-            self.profile.latency_profile.get("execution_time_sec", 0.0),
-            self.jitter_ratio,
-            self._rng,
-        )
+        try:
+            resolved_latency = resolve_tool_execution_time_sec(self.profile, tool_call)
+        except ProfileLookupError as exc:
+            return _tool_failure(self.profile, tool_call, "invalid_profile", str(exc))
+        execution_time_sec = _sample(resolved_latency.value, self.jitter_ratio, self._rng)
         if timeout_sec is not None and execution_time_sec > timeout_sec:
             return _tool_failure(
                 self.profile,
@@ -133,14 +153,23 @@ class ProfileToolExecutor:
                 "seeded profile Tool failure",
                 execution_time_sec=execution_time_sec,
             )
+        energy_joules, energy_metadata = _tool_energy(self.profile, tool_call)
         return ToolResult(
             tool_call_id=tool_call.tool_call_id,
             replica_id=self.profile.replica_id,
             success=True,
             output=deepcopy(self.output),
             execution_time_sec=execution_time_sec,
-            energy_joules=self.profile.energy_profile.get("joules_per_call", 0.0),
-            metadata={"executor_type": "profile", "seed": self.seed},
+            energy_joules=energy_joules,
+            metadata={
+                "executor_type": "profile",
+                "seed": self.seed,
+                "profile_metric": {
+                    "execution_time_sec_source": resolved_latency.source,
+                    "execution_time_sec_bucket_id": resolved_latency.bucket_id,
+                    **energy_metadata,
+                },
+            },
         )
 
 
@@ -148,6 +177,43 @@ def _sample(value: float, jitter_ratio: float, rng: random.Random) -> float:
     if jitter_ratio == 0:
         return value
     return value * rng.uniform(1.0 - jitter_ratio, 1.0 + jitter_ratio)
+
+
+def _llm_energy(
+    profile: LLMInstanceProfile,
+    call: LLMCall,
+) -> tuple[float, dict[str, Any]]:
+    try:
+        resolved = resolve_llm_joules_per_token(profile, call)
+    except ProfileMetricUnavailableError:
+        return 0.0, {
+            "energy_status": "unavailable",
+            "energy_value_semantics": "legacy_schema_placeholder_not_measurement",
+        }
+    total_tokens = call.input_tokens + call.estimated_output_tokens
+    return total_tokens * resolved.value, {
+        "energy_status": "profiled",
+        "energy_source": resolved.source,
+        "energy_bucket_id": resolved.bucket_id,
+    }
+
+
+def _tool_energy(
+    profile: ToolReplicaProfile,
+    call: ToolCall,
+) -> tuple[float, dict[str, Any]]:
+    try:
+        resolved = resolve_tool_joules_per_call(profile, call)
+    except ProfileMetricUnavailableError:
+        return 0.0, {
+            "energy_status": "unavailable",
+            "energy_value_semantics": "legacy_schema_placeholder_not_measurement",
+        }
+    return resolved.value, {
+        "energy_status": "profiled",
+        "energy_source": resolved.source,
+        "energy_bucket_id": resolved.bucket_id,
+    }
 
 
 def _validate_simulation_parameters(jitter_ratio: float, failure_rate: float) -> None:
