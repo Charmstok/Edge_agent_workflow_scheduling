@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "validation_id": "arch-linux-profile-validation-v1",
+  "relative_error_denominator_epsilon": 1e-09,
+  "comparison": {
+    "before_calibration": "aggregate_profile_mean",
+    "after_calibration": "matching_bucket_mean",
+    "distribution": "calibration_bucket_distribution_vs_holdout_distribution"
+  },
+  "tool_execution_time_thresholds": {
+    "minimum_total_sample_count": 27,
+    "minimum_group_sample_count": 3,
+    "maximum_overall_mae_sec": 0.03,
+    "maximum_overall_mean_relative_error": 0.35,
+    "maximum_group_mean_relative_error": 0.5
+  },
+  "stochastic_validation": {
+    "seeds": [101, 102, 103, 104, 105, 106, 107, 108, 109, 110],
+    "samples_per_seed_per_group": 10
+  },
+  "policy": {
+    "thresholds_declared_before_holdout_sampling": true,
+    "failed_threshold_behavior": "report failure and preserve the holdout unchanged",
+    "retuning_behavior": "require a new independent test set before claiming unbiased validation",
+    "near_zero_relative_error_behavior": "exclude denominators at or below epsilon and report the exclusion count"
+  }
+}

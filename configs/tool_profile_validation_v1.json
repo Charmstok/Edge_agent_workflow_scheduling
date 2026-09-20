@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "sampling_id": "linux-local-image-profile-holdout-v1",
+  "tools": ["image_preprocess"],
+  "scales": ["small", "medium", "large"],
+  "concurrency_levels": [1, 2],
+  "cold_start_runs": 1,
+  "warmup_runs_per_worker": 1,
+  "measurement_repetitions_per_worker": 3,
+  "timeout_sec": 120.0,
+  "resource_sample_interval_sec": 0.05,
+  "input_templates": {
+    "image_preprocess": "workload_fixtures_v1/beta-{scale}.png"
+  },
+  "image_preprocess": {
+    "operations": ["grayscale", "blur", "threshold", "edge_detect"],
+    "operation_repeat": 2
+  }
+}

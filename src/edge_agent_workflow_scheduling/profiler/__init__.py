@@ -47,6 +47,12 @@ from edge_agent_workflow_scheduling.profiler.profile_fitting import (
     fit_tool_profiles,
     write_profile_catalog,
 )
+from edge_agent_workflow_scheduling.profiler.profile_validation import (
+    PROFILE_VALIDATION_SCHEMA_VERSION,
+    ProfileValidationConfig,
+    validate_profile_catalog,
+    write_profile_validation_artifacts,
+)
 from edge_agent_workflow_scheduling.profiler.quality import (
     SCORING_REGISTRY_VERSION,
     QualityCalibrationConfig,
@@ -99,6 +105,8 @@ __all__ = [
     "ParetoExperimentResult",
     "ParetoPoint",
     "PROFILE_CATALOG_SCHEMA_VERSION",
+    "PROFILE_VALIDATION_SCHEMA_VERSION",
+    "ProfileValidationConfig",
     "QualityCalibrationConfig",
     "ReplayDecision",
     "ReplayResult",
@@ -149,5 +157,7 @@ __all__ = [
     "run_tool_sampling",
     "summarize_measurements",
     "validate_scoring_rules",
+    "validate_profile_catalog",
     "write_quality_artifacts",
+    "write_profile_validation_artifacts",
 ]

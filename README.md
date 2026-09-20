@@ -90,6 +90,28 @@ For a new device or profile version, repeat `--tool-sampling-run` and choose a n
 the host digest is part of every Tool profile ID. Existing catalogs are not overwritten unless
 `--overwrite` is explicitly supplied.
 
+Validate the fitted profile against the independent `beta-*` holdout fixtures using the
+predeclared thresholds in `configs/profile_validation_v1.json`:
+
+```bash
+PYTHONPATH=src python scripts/sample_tools.py \
+  --config configs/tool_profile_validation_v1.json \
+  --output-dir data/tool_validation_sampling \
+  --experiment-id arch-linux-image-profile-holdout-v1-20260920
+
+PYTHONPATH=src python scripts/validate_profiles.py \
+  --tool-holdout-run \
+    data/tool_validation_sampling/arch-linux-image-profile-holdout-v1-20260920 \
+  --output-dir data/profile_validation/arch-linux-profile-validation-v1 \
+  --require-pass
+```
+
+The validator writes per-sample errors and grouped summaries by Tool, input size, and
+concurrency. It compares an aggregate-only baseline with exact fitted buckets, checks input
+hashes for calibration/holdout leakage, and separately reports distribution mismatch across
+multiple profile seeds. Missing LLM holdout and measured energy observations remain explicitly
+unvalidated rather than receiving synthetic scores.
+
 ### Agent demos
 
 Run all Milestone 2 demos. Without `ARK_API_KEY`, the online demo is skipped while offline, multi-Tool, and replay verification still complete:
@@ -173,19 +195,23 @@ scripts/
 ├── run_agent_demos.py
 ├── run_baselines.py
 ├── run_first_demo.py
-└── run_pareto.py
+├── run_pareto.py
+└── validate_profiles.py
 ```
 
 ### LLM measurement
 
 vLLM/Ark deployment inputs are defined in `configs/llm_profiles.toml`; bounded real
 sampling and credential-free benchmark import are provided by `scripts/sample_llms.py`.
-The local experiment data includes 18 real Qwen3.8-27B-FP8 observations and explicitly
-labeled measured/synthetic profiles under `data/`; 9B and cloud measurements remain
-unverified. These generated artifacts are not committed.
-Real Qwen3.8-27B automatic Function Calling can be reproduced with
+Both local vLLM deployments are enabled: Qwen3.5-9B at port 8000 and
+Qwen3.8-27B-FP8 at port 8001. The local experiment data currently includes 18 historical
+Qwen3.8-27B-FP8 observations and explicitly labeled measured/synthetic profiles under
+`data/`; current-deployment 9B/27B calibration and cloud measurements remain incomplete.
+These generated artifacts are not committed. Automatic Function Calling can be tested with
 `python scripts/verify_function_calling.py`. It exposes all four repository Tool schemas,
-checks selection and execution of `image_preprocess`, and checks an automatic no-Tool decision.
+checks selection and execution of `image_preprocess`, and checks an automatic no-Tool decision;
+the current vLLM commands do not enable automatic Tool parsing, so this test is expected to
+require the corresponding vLLM parser flags before it can pass.
 
 ### Task quality calibration
 
