@@ -93,6 +93,15 @@ class OpenAIChatExecutor:
                     {"type": "function", "function": {k: v for k, v in tool.items() if k != "type"}}
                     for tool in tools
                 ]
+                # Once a Tool result is present, ask the model to synthesize the
+                # answer instead of repeatedly reissuing the same Tool calls.
+                # The first turn remains automatic, so multi-Tool requests can
+                # still select all required Tools in one structured response.
+                if any(
+                    item.get("type") == "function_call_output"
+                    for item in llm_call.input_items
+                ):
+                    options["tool_choice"] = "none"
             response = self.client.chat.completions.create(
                 model=self.profile.model,
                 messages=chat_messages(llm_call.input_items),

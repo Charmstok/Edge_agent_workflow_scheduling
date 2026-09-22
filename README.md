@@ -194,6 +194,7 @@ scripts/
 ├── fit_profiles.py
 ├── run_agent_demos.py
 ├── run_baselines.py
+├── run_workload.py
 ├── run_first_demo.py
 ├── run_pareto.py
 └── validate_profiles.py
@@ -207,11 +208,12 @@ Both local vLLM deployments are enabled: Qwen3.5-9B at port 8000 and
 Qwen3.8-27B-FP8 at port 8001. The local experiment data currently includes 18 historical
 Qwen3.8-27B-FP8 observations and explicitly labeled measured/synthetic profiles under
 `data/`; current-deployment 9B/27B calibration and cloud measurements remain incomplete.
-These generated artifacts are not committed. Automatic Function Calling can be tested with
-`python scripts/verify_function_calling.py`. It exposes all four repository Tool schemas,
-checks selection and execution of `image_preprocess`, and checks an automatic no-Tool decision;
-the current vLLM commands do not enable automatic Tool parsing, so this test is expected to
-require the corresponding vLLM parser flags before it can pass.
+These generated artifacts are not committed. The current 9B and 27B endpoints have both
+passed the repository's real end-to-end Function Calling verifier with `tool_choice=auto`,
+including a Tool-needed and a no-Tool scenario. A minimal standalone 27B curl can still
+expose XML-format content, so the repository verifier, with the full Tool schema and
+Runner prompt, is the acceptance path. Re-run `python scripts/verify_function_calling.py`
+after any parser or chat-template change.
 
 ### Task quality calibration
 
@@ -240,3 +242,40 @@ Qwen3.8-27B task profile;
 models without measured coverage retain an empty `quality_profile` and are not given a
 silent default score. The evaluator reports both selected-profile quality and the final
 task score of each AgentRun.
+
+### Milestone 4.8 workload, replay, and live status
+
+Use one entry point for the versioned workload. The scripted mode needs no API key and
+writes complete, deterministic call traces for all three document task types:
+
+```bash
+PYTHONPATH=src python scripts/run_workload.py \
+  --mode scripted \
+  --workload configs/workload_milestone_4_1_v1.json \
+  --scenario low_load --split validation \
+  --output-dir data/milestone_4_8
+```
+
+Replay never asks an LLM to choose a Tool. It reuses the saved call stream and compares
+at least two policies over the same inputs; profile jitter/failure injection is explicit:
+
+```bash
+PYTHONPATH=src python scripts/run_workload.py \
+  --mode replay --output-dir data/milestone_4_8 \
+  --policies round_robin least_queue --seeds 0 1
+```
+
+Live mode records the selected deployment, repeat count, and sampling parameters. It
+returns `not_validated` when credentials or verified Function Calling are unavailable.
+The local vLLM profiles use automatic Tool parsing and have been verified with the
+project Runner. A complete 27B validation run is recorded under
+`data/milestone_4_8_live_27b_verified/` (generated and ignored). Scripted scores and
+replay evaluations must not be reported as replacement live LLM quality or latency
+measurements:
+
+```bash
+PYTHONPATH=src python scripts/run_workload.py \
+  --mode live --llm-config configs/llm_profiles.toml \
+  --llm-id local-qwen35-9b --repeats 3 \
+  --output-dir data/milestone_4_8
+```
