@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import shutil
 import subprocess
@@ -103,7 +104,11 @@ class PDFRenderTool:
             }
             self.check_available()
             self.config.output_dir.mkdir(parents=True, exist_ok=True)
-            safe_prefix = re.sub(r"[^A-Za-z0-9_.-]", "_", invocation_id)[:80] or "render"
+            safe_prefix = (
+                re.sub(r"[^A-Za-z0-9_.-]", "_", invocation_id)[:48]
+                + "-"
+                + hashlib.sha256(invocation_id.encode()).hexdigest()[:16]
+            )
             documents: list[dict[str, Any]] = []
             for index, path in enumerate(paths):
                 prefix = self.config.output_dir / f"{safe_prefix}-{index}"

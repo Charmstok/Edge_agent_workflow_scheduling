@@ -38,6 +38,8 @@ from edge_agent_workflow_scheduling.tools import (
     OCRConfig,
     OCRTool,
     PDFParseTool,
+    PDFRenderConfig,
+    PDFRenderTool,
     ToolRegistry,
 )
 from edge_agent_workflow_scheduling.workers import LocalWorker
@@ -48,7 +50,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised through dependency i
     psutil = None
 
 SamplingPhase = Literal["cold_start", "warmup", "measurement"]
-SUPPORTED_TOOLS = ("image_preprocess", "ocr", "pdf_parse")
+SUPPORTED_TOOLS = ("image_preprocess", "ocr", "pdf_parse", "pdf_render")
 SUPPORTED_SCALES = ("small", "medium", "large")
 
 
@@ -92,6 +94,7 @@ class ToolSamplingConfig:
     resource_sample_interval_sec: float
     input_templates: dict[str, str]
     image_preprocess: dict[str, Any]
+    pdf_render: dict[str, Any] = field(default_factory=lambda: {"dpi": 150})
     schema_version: int = 1
 
     def __post_init__(self) -> None:
@@ -132,6 +135,9 @@ class ToolSamplingConfig:
             "image_preprocess.operation_repeat",
             1,
         )
+        dpi = self.pdf_render.get("dpi", 150)
+        if isinstance(dpi, bool) or not isinstance(dpi, int) or dpi < 36:
+            raise ValueError("pdf_render.dpi must be an integer >= 36")
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
@@ -646,12 +652,22 @@ def _build_executor(
             )
         )
         version = tool.implementation_version
-    else:
+    elif tool_name == "pdf_parse":
         tool = PDFParseTool(
             DocumentToolConfig(
                 output_dir=output_dir,
                 local_root=input_root,
                 timeout_sec=config.timeout_sec,
+            )
+        )
+        version = tool.implementation_version
+    else:
+        tool = PDFRenderTool(
+            PDFRenderConfig(
+                output_dir=output_dir,
+                local_root=input_root,
+                timeout_sec=config.timeout_sec,
+                dpi=config.pdf_render.get("dpi", 150),
             )
         )
         version = tool.implementation_version

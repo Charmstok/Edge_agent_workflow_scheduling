@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "validation_id": "arch-linux-profile-validation-v1",
+  "validation_id": "arch-linux-document-tools-validation-v2",
   "relative_error_denominator_epsilon": 1e-09,
   "comparison": {
     "before_calibration": "aggregate_profile_mean",

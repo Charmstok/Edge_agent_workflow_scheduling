@@ -69,15 +69,33 @@ the saved observations:
 ```bash
 PYTHONPATH=src python scripts/sample_tools.py \
   --config configs/tool_profile_sampling_v1.json \
-  --output-dir data/tool_sampling
+  --output-dir data/tool_sampling \
+  --experiment-id arch-linux-document-tools-profile-v2-20260923-r2
 
 PYTHONPATH=src python scripts/fit_profiles.py \
-  --tool-sampling-run data/tool_sampling/<sampling-run> \
+  --tool-sampling-run data/tool_sampling/arch-linux-document-tools-profile-v2-20260923-r2 \
   --llm-benchmark data/llm_sampling/qwen38-27b-local-20260911/benchmark.json \
-  --profile-version arch-linux-calibrated-v1 \
+  --profile-version arch-linux-document-tools-calibrated-v2 \
   --synthetic-energy-config configs/synthetic_energy_profiles_v1.json \
-  --output data/profile_calibration/arch-linux-calibrated-v1/profiles.json \
+  --output data/profile_calibration/arch-linux-document-tools-calibrated-v2/profiles.json \
   --overwrite
+```
+
+The complete calibration-and-validation chain can also be run through the traceable
+orchestrator. It records input paths, SHA-256 references, the fitted catalog, and the
+holdout report in the generated profile directory:
+
+```bash
+PYTHONPATH=src python scripts/calibrate_profiles.py \
+  --tool-sampling-run data/tool_sampling/arch-linux-document-tools-profile-v2-20260923-r2 \
+  --llm-benchmark data/llm_sampling/qwen38-27b-local-20260911/benchmark.json \
+  --profile-version arch-linux-document-tools-calibrated-v2 \
+  --synthetic-energy-config configs/synthetic_energy_profiles_v1.json \
+  --profile-output data/profile_calibration/arch-linux-document-tools-calibrated-v2/profiles.json \
+  --tool-holdout-run data/tool_validation_sampling/arch-linux-document-tools-holdout-v2-20260923-r2 \
+  --validation-config configs/profile_validation_v1.json \
+  --validation-output data/profile_validation/arch-linux-document-tools-validation-v2 \
+  --overwrite --require-pass
 ```
 
 The generated profile catalog is directly loadable by the existing replay/baseline resource
@@ -97,12 +115,12 @@ predeclared thresholds in `configs/profile_validation_v1.json`:
 PYTHONPATH=src python scripts/sample_tools.py \
   --config configs/tool_profile_validation_v1.json \
   --output-dir data/tool_validation_sampling \
-  --experiment-id arch-linux-image-profile-holdout-v1-20260920
+  --experiment-id arch-linux-document-tools-holdout-v2-20260923-r2
 
 PYTHONPATH=src python scripts/validate_profiles.py \
   --tool-holdout-run \
-    data/tool_validation_sampling/arch-linux-image-profile-holdout-v1-20260920 \
-  --output-dir data/profile_validation/arch-linux-profile-validation-v1 \
+    data/tool_validation_sampling/arch-linux-document-tools-holdout-v2-20260923-r2 \
+  --output-dir data/profile_validation/arch-linux-document-tools-validation-v2 \
   --require-pass
 ```
 
