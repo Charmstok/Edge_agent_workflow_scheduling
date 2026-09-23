@@ -36,7 +36,7 @@ structured_tool_choice_required_verified = true
 llm_id = "local-qwen35-9b"
 provider = "vllm"
 model = "Qwen3.5-9B"
-node_id = "linux-gpu-9b"
+node_id = "linux-gpu-0"
 platform = "linux"
 executor_type = "openai_chat"
 base_url = "http://127.0.0.1:8000/v1"
@@ -64,7 +64,7 @@ deployment_status = "running; /v1/models and structured Function Calling probe v
 deployment_command = "vllm/vllm-openai:latest --model Qwen/Qwen3.5-9B --served-model-name Qwen3.5-9B --trust-remote-code --tensor-parallel-size 1 --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser qwen3 --max-model-len 32768 --max-num-seqs 4 --gpu-memory-utilization 0.34"
 
 [[llm_instances]]
-llm_id = "online-doubao"
+llm_id = "online-doubao-1"
 provider = "volcengine"
 model = "doubao-seed-2-0-lite-260428"
 # Preserve the existing declared capability; live verification remains false.
@@ -73,7 +73,7 @@ node_id = "volcengine-ark-api"
 platform = "cloud"
 executor_type = "openai_chat"
 base_url = "https://ark.cn-beijing.volces.com/api/v3"
-context_window_tokens = 8192
+context_window_tokens = 32768
 max_concurrency = 4
 secret_env_vars = ["ARK_API_KEY"]
 [llm_instances.deployment_config]
@@ -86,19 +86,19 @@ function_calling_verified = false
 context_limit_note = "conservative experiment limit, not provider maximum"
 
 [[llm_instances]]
-llm_id = "online-ark-secondary"
+llm_id = "online-doubao-2"
 provider = "volcengine"
-model = "SET_ARK_SECONDARY_MODEL"
+model = "doubao-seed-2-0-lite-260428"
+capabilities = ["function_calling"]
 node_id = "volcengine-ark-api"
 platform = "cloud"
 executor_type = "openai_chat"
 base_url = "https://ark.cn-beijing.volces.com/api/v3"
-context_window_tokens = 8192
+context_window_tokens = 32768
 max_concurrency = 4
 secret_env_vars = ["ARK_API_KEY"]
 [llm_instances.deployment_config]
 requires_api_key = true
-model_env = "ARK_SECONDARY_MODEL"
 [llm_instances.deployment_config.model_parameters]
 temperature = 0
 [llm_instances.metadata]

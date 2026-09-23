@@ -1,0 +1,115 @@
+# Formal Milestone 5 local prototype catalog.
+# These are logical replicas on one Arch Linux host. They are separate scheduler
+# targets with independent queue/state/profile IDs, not separate physical nodes.
+
+[[tool_replicas]]
+replica_id = "image-preprocess-arch-local-1"
+tool_name = "image_preprocess"
+node_id = "arch-linux-local"
+platform = "linux"
+implementation_version = "pillow-v1"
+executor_type = "local_tool"
+capabilities = ["image_processing"]
+max_concurrency = 2
+[tool_replicas.latency_profile]
+small = 0.05
+medium = 0.15
+large = 0.50
+[tool_replicas.metadata]
+deployment_kind = "same_host_logical_replica"
+profile_source = "local_arch_linux_calibration"
+
+[[tool_replicas]]
+replica_id = "image-preprocess-arch-local-2"
+tool_name = "image_preprocess"
+node_id = "arch-linux-local"
+platform = "linux"
+implementation_version = "pillow-v1"
+executor_type = "local_tool"
+capabilities = ["image_processing"]
+max_concurrency = 2
+[tool_replicas.latency_profile]
+small = 0.06
+medium = 0.17
+large = 0.55
+[tool_replicas.metadata]
+deployment_kind = "same_host_logical_replica"
+profile_source = "local_arch_linux_calibration"
+
+[[tool_replicas]]
+replica_id = "ocr-arch-local-1"
+tool_name = "ocr"
+node_id = "arch-linux-local"
+platform = "linux"
+implementation_version = "tesseract-local-v1"
+executor_type = "local_tool"
+capabilities = ["document_ocr"]
+max_concurrency = 2
+[tool_replicas.metadata]
+deployment_kind = "same_host_logical_replica"
+profile_source = "local_arch_linux_calibration"
+
+[[tool_replicas]]
+replica_id = "ocr-arch-local-2"
+tool_name = "ocr"
+node_id = "arch-linux-local"
+platform = "linux"
+implementation_version = "tesseract-local-v1"
+executor_type = "local_tool"
+capabilities = ["document_ocr"]
+max_concurrency = 2
+[tool_replicas.metadata]
+deployment_kind = "same_host_logical_replica"
+profile_source = "local_arch_linux_calibration"
+
+[[tool_replicas]]
+replica_id = "pdf-parse-arch-local-1"
+tool_name = "pdf_parse"
+node_id = "arch-linux-local"
+platform = "linux"
+implementation_version = "pypdf-local-v1"
+executor_type = "local_tool"
+capabilities = ["pdf_text_extraction"]
+max_concurrency = 2
+[tool_replicas.metadata]
+deployment_kind = "same_host_logical_replica"
+profile_source = "local_arch_linux_calibration"
+
+[[tool_replicas]]
+replica_id = "pdf-parse-arch-local-2"
+tool_name = "pdf_parse"
+node_id = "arch-linux-local"
+platform = "linux"
+implementation_version = "pypdf-local-v1"
+executor_type = "local_tool"
+capabilities = ["pdf_text_extraction"]
+max_concurrency = 2
+[tool_replicas.metadata]
+deployment_kind = "same_host_logical_replica"
+profile_source = "local_arch_linux_calibration"
+
+[[tool_replicas]]
+replica_id = "pdf-render-arch-local-1"
+tool_name = "pdf_render"
+node_id = "arch-linux-local"
+platform = "linux"
+implementation_version = "poppler-local-v1"
+executor_type = "local_tool"
+capabilities = ["pdf_rendering"]
+max_concurrency = 2
+[tool_replicas.metadata]
+deployment_kind = "same_host_logical_replica"
+profile_source = "local_arch_linux_calibration"
+
+[[tool_replicas]]
+replica_id = "pdf-render-arch-local-2"
+tool_name = "pdf_render"
+node_id = "arch-linux-local"
+platform = "linux"
+implementation_version = "poppler-local-v1"
+executor_type = "local_tool"
+capabilities = ["pdf_rendering"]
+max_concurrency = 2
+[tool_replicas.metadata]
+deployment_kind = "same_host_logical_replica"
+profile_source = "local_arch_linux_calibration"

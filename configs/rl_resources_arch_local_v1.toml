@@ -1,0 +1,28 @@
+# Resource catalog for the formal local RL experiment.
+# The referenced catalogs remain separately versioned so deployment and tool
+# calibration can be updated without changing the RL environment schema.
+schema_version = 1
+resource_catalog_id = "arch-local-rl-v1"
+platform = "arch-linux"
+deployment_kind = "same_host_logical_replica"
+llm_profile_catalog = "configs/llm_profiles.toml"
+tool_profile_catalog = "configs/tool_profiles.toml"
+
+required_local_llm_ids = ["local-qwen35-9b", "local-qwen38-27b"]
+required_cloud_llm_ids = ["online-doubao-1", "online-doubao-2"]
+required_tool_names = ["image_preprocess", "ocr", "pdf_parse", "pdf_render"]
+minimum_replicas_per_tool = 2
+
+[cloud_api]
+provider = "volcengine"
+base_url = "https://ark.cn-beijing.volces.com/api/v3"
+api_key_env = "ARK_API_KEY"
+secondary_model_env = "ARK_SECONDARY_MODEL"
+credential_policy = "environment_only"
+
+[experiment_defaults]
+executor_mode = "profile"
+allow_cloud_calls = false
+require_measured_energy = false
+require_quality_profile = false
+same_host_replica_label = "same_host_logical_replica"
