@@ -129,6 +129,28 @@ class ResourceRegistry:
             ]
         return [self.tool_snapshot(replica_id) for replica_id in replica_ids]
 
+    def snapshot_states(self) -> dict[str, LLMInstanceState | ToolReplicaState]:
+        """Copy dynamic states for deterministic environment reset."""
+
+        return {
+            **{key: deepcopy(value) for key, value in self._llm_states.items()},
+            **{key: deepcopy(value) for key, value in self._tool_states.items()},
+        }
+
+    def restore_states(
+        self,
+        states: dict[str, LLMInstanceState | ToolReplicaState],
+    ) -> None:
+        """Restore a previously captured dynamic state snapshot."""
+
+        for state in states.values():
+            if isinstance(state, LLMInstanceState):
+                self.update_llm_state(deepcopy(state))
+            elif isinstance(state, ToolReplicaState):
+                self.update_tool_state(deepcopy(state))
+            else:
+                raise TypeError("states must contain LLMInstanceState or ToolReplicaState")
+
     def consistency_samples(self, tool_name: str) -> list[ToolConsistencySample]:
         return [
             deepcopy(sample)

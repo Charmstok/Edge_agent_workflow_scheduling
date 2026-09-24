@@ -3,3 +3,5 @@
 -r requirements-edge.txt
 
 openai==2.48.0
+gymnasium==1.2.0
+numpy==2.3.3
