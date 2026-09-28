@@ -209,6 +209,8 @@ src/edge_agent_workflow_scheduling/
 └── workers/      # local real-Tool execution
 
 scripts/
+├── create_vllm_containers.sh
+├── start_vllm_containers.sh
 ├── fit_profiles.py
 ├── run_agent_demos.py
 ├── run_baselines.py
@@ -232,6 +234,31 @@ including a Tool-needed and a no-Tool scenario. A minimal standalone 27B curl ca
 expose XML-format content, so the repository verifier, with the full Tool schema and
 Runner prompt, is the acceptance path. Re-run `python scripts/verify_function_calling.py`
 after any parser or chat-template change.
+
+To download both model repositories with Hugging Face, pull the fixed
+`vllm/vllm-openai:latest` image, and create both Docker containers from scratch, run:
+
+```bash
+./scripts/create_vllm_containers.sh
+```
+
+The script runs `hf download Qwen/Qwen3.5-9B` and
+`hf download Qwen/Qwen3.8-27B-FP8`, then mounts the default cache
+`${HF_CACHE_DIR:-/data/huggingface}` read-only into containers
+`qwen35-9b` (port 8000) and `qwen38-27b-fp8` (port 8001). Start the existing
+containers separately with:
+
+```bash
+./scripts/start_vllm_containers.sh
+```
+
+The start script waits until both `/v1/models` endpoints respond successfully. The default
+startup timeout is 900 seconds and can be changed with `VLLM_STARTUP_TIMEOUT`.
+
+The create script is idempotent for existing container names and does not alter them.
+Set `VLLM_IMAGE`, `HF_CACHE_DIR`, `VLLM_9B_CONTAINER`, or `VLLM_27B_CONTAINER` to override
+the defaults. The create script requires the Hugging Face CLI (`hf`) and Docker with
+NVIDIA GPU support.
 
 ### Task quality calibration
 
