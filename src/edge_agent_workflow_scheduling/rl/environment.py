@@ -19,11 +19,14 @@ from edge_agent_workflow_scheduling.executors import (
 from edge_agent_workflow_scheduling.resources import (
     ResourceRegistry,
     SchedulingConstraints,
-    resolve_llm_joules_per_token,
-    resolve_tool_joules_per_call,
 )
-from edge_agent_workflow_scheduling.scheduler.objectives import estimate_objectives_dict
-from edge_agent_workflow_scheduling.scheduler.types import candidate_from_snapshot, call_id_for
+from edge_agent_workflow_scheduling.rl.reward import MultiObjectiveReward
+from edge_agent_workflow_scheduling.scheduler.objectives import (
+    ObjectiveNormalization,
+    ObjectiveWeights,
+    estimate_objectives_dict,
+)
+from edge_agent_workflow_scheduling.scheduler.types import call_id_for, candidate_from_snapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +60,9 @@ class SchedulingEnv(gym.Env[np.ndarray, int]):
         config: EnvironmentConfig | None = None,
         profile_seed: int = 0,
         executor_pool: ExecutorPool | None = None,
+        reward: MultiObjectiveReward | None = None,
+        reward_weights: ObjectiveWeights | None = None,
+        reward_normalization: ObjectiveNormalization | None = None,
     ) -> None:
         super().__init__()
         if not calls:
@@ -68,6 +74,12 @@ class SchedulingEnv(gym.Env[np.ndarray, int]):
         self.constraints = constraints or SchedulingConstraints()
         self.config = config or EnvironmentConfig()
         self.profile_seed = profile_seed
+        if reward is not None and (reward_weights is not None or reward_normalization is not None):
+            raise ValueError("pass reward or reward_weights/reward_normalization, not both")
+        self.reward = reward or MultiObjectiveReward(
+            weights=reward_weights or MultiObjectiveReward().weights,
+            normalization=reward_normalization or MultiObjectiveReward().normalization,
+        )
         self.executor_pool = executor_pool or _profile_executor_pool(resources, profile_seed)
         self._target_ids = tuple(sorted(_all_target_ids(resources)))
         if not self._target_ids:
@@ -81,6 +93,8 @@ class SchedulingEnv(gym.Env[np.ndarray, int]):
         self._call_index = 0
         self._decisions: list[dict[str, Any]] = []
         self._initial_states = resources.snapshot_states()
+        self._episode_reward = 0.0
+        self._episode_objectives: list[dict[str, float | int]] = []
 
     @property
     def target_ids(self) -> tuple[str, ...]:
@@ -99,15 +113,22 @@ class SchedulingEnv(gym.Env[np.ndarray, int]):
             self.calls[self._call_index], constraints=self.constraints
         )
         values = dict(zip(mask.target_ids, mask.values, strict=True))
-        return np.asarray([int(values.get(target_id, False)) for target_id in self._target_ids], dtype=np.int8)
+        return np.asarray(
+            [int(values.get(target_id, False)) for target_id in self._target_ids], dtype=np.int8
+        )
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
         super().reset(seed=seed)
         del options
         self._call_index = 0
         self._decisions = []
+        self._episode_reward = 0.0
+        self._episode_objectives = []
         self.resources.restore_states(self._initial_states)
-        return self._observation(), {"action_mask": self.action_masks(), "target_ids": self._target_ids}
+        return self._observation(), {
+            "action_mask": self.action_masks(),
+            "target_ids": self._target_ids,
+        }
 
     def step(self, action: int):
         if self._call_index >= len(self.calls):
@@ -119,36 +140,100 @@ class SchedulingEnv(gym.Env[np.ndarray, int]):
             raise ValueError(f"illegal action {action}: target is masked")
         call = self.calls[self._call_index]
         target_id = self._target_ids[int(action)]
-        snapshot = self.resources.llm_snapshot(target_id) if isinstance(call, LLMCall) else self.resources.tool_snapshot(target_id)
+        snapshot = (
+            self.resources.llm_snapshot(target_id)
+            if isinstance(call, LLMCall)
+            else self.resources.tool_snapshot(target_id)
+        )
         candidate = candidate_from_snapshot(snapshot)
-        candidates = [candidate_from_snapshot(item) for item in self.resources.eligible_snapshots(call, constraints=self.constraints)]
-        objectives = estimate_objectives_dict(call, candidate, candidates, allow_missing_optional_profiles=True)
+        candidates = [
+            candidate_from_snapshot(item)
+            for item in self.resources.eligible_snapshots(call, constraints=self.constraints)
+        ]
+        objectives = estimate_objectives_dict(
+            call,
+            candidate,
+            candidates,
+            allow_missing_optional_profiles=True,
+        )
+        reward_breakdown = self.reward.calculate_from_dict(objectives)
         result = self._execute(call, candidate.profile)
-        self._decisions.append({"call_id": call_id_for(call), "target_id": target_id, "objectives": objectives, "success": _result_success(result)})
+        self._episode_reward += reward_breakdown.reward
+        self._episode_objectives.append(reward_breakdown.objectives)
+        self._decisions.append(
+            {
+                "call_id": call_id_for(call),
+                "target_id": target_id,
+                "objectives": objectives,
+                "success": _result_success(result),
+                "reward": reward_breakdown.to_dict(),
+            }
+        )
         self._call_index += 1
         terminated = self._call_index >= len(self.calls)
-        info = {"action_mask": self.action_masks(), "target_ids": self._target_ids, "decision": self._decisions[-1], "result": result.to_dict()}
-        return self._observation() if not terminated else np.zeros(self.observation_space.shape, dtype=np.float32), 0.0, terminated, False, info
+        info = {
+            "action_mask": self.action_masks(),
+            "target_ids": self._target_ids,
+            "decision": self._decisions[-1],
+            "result": result.to_dict(),
+            "reward_breakdown": reward_breakdown.to_dict(),
+        }
+        if terminated:
+            info["episode_reward"] = self._episode_reward
+            info["episode_objectives"] = _episode_objective_summary(self._episode_objectives)
+        return (
+            self._observation()
+            if not terminated
+            else np.zeros(self.observation_space.shape, dtype=np.float32),
+            reward_breakdown.reward,
+            terminated,
+            False,
+            info,
+        )
 
     def _observation(self) -> np.ndarray:
         if self._call_index >= len(self.calls):
             return np.zeros(self.observation_space.shape, dtype=np.float32)
         call = self.calls[self._call_index]
-        call_features = np.asarray([
-            float(isinstance(call, ToolCall)), float(isinstance(call, LLMCall)),
-            min(call.turn_index / self.config.max_calls, 1.0),
-            min((call.input_tokens if isinstance(call, LLMCall) else 0) / self.config.max_input_tokens, 1.0),
-            min((call.estimated_output_tokens if isinstance(call, LLMCall) else 0) / self.config.max_output_tokens, 1.0),
-            min((call.context_length if isinstance(call, LLMCall) else 0) / self.config.max_input_tokens, 1.0),
-            min((call.deadline_sec or self.config.max_latency_sec) / self.config.max_latency_sec, 1.0),
-            min(self._call_index / self.config.max_calls, 1.0),
-        ], dtype=np.float32)
+        call_features = np.asarray(
+            [
+                float(isinstance(call, ToolCall)),
+                float(isinstance(call, LLMCall)),
+                min(call.turn_index / self.config.max_calls, 1.0),
+                min(
+                    (call.input_tokens if isinstance(call, LLMCall) else 0)
+                    / self.config.max_input_tokens,
+                    1.0,
+                ),
+                min(
+                    (call.estimated_output_tokens if isinstance(call, LLMCall) else 0)
+                    / self.config.max_output_tokens,
+                    1.0,
+                ),
+                min(
+                    (call.context_length if isinstance(call, LLMCall) else 0)
+                    / self.config.max_input_tokens,
+                    1.0,
+                ),
+                min(
+                    (call.deadline_sec or self.config.max_latency_sec)
+                    / self.config.max_latency_sec,
+                    1.0,
+                ),
+                min(self._call_index / self.config.max_calls, 1.0),
+            ],
+            dtype=np.float32,
+        )
         mask = self.action_masks()
         rows: list[float] = []
         for index, target_id in enumerate(self._target_ids):
             row = [float(mask[index]), 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
             try:
-                snapshot = self.resources.llm_snapshot(target_id) if isinstance(call, LLMCall) else self.resources.tool_snapshot(target_id)
+                snapshot = (
+                    self.resources.llm_snapshot(target_id)
+                    if isinstance(call, LLMCall)
+                    else self.resources.tool_snapshot(target_id)
+                )
                 state, profile = snapshot.state, snapshot.profile
                 running = getattr(state, "running_requests", getattr(state, "running_tasks", 0))
                 row[1] = min(state.queue_len / max(profile.max_concurrency, 1), 1.0)
@@ -156,15 +241,28 @@ class SchedulingEnv(gym.Env[np.ndarray, int]):
                 row[3] = min((state.queue_len + running) / max(profile.max_concurrency, 1), 1.0)
                 row[4] = float(state.is_online)
                 candidate = candidate_from_snapshot(snapshot)
-                candidates = [candidate_from_snapshot(item) for item in self.resources.eligible_snapshots(call, constraints=self.constraints)]
-                estimated = estimate_objectives_dict(call, candidate, candidates, allow_missing_optional_profiles=True)
-                row[5] = min(float(estimated["latency_sec"] or 0.0) / self.config.max_latency_sec, 1.0)
-                row[6] = min(float(estimated["energy_joules"] or 0.0) / self.config.max_energy_joules, 1.0)
+                candidates = [
+                    candidate_from_snapshot(item)
+                    for item in self.resources.eligible_snapshots(
+                        call, constraints=self.constraints
+                    )
+                ]
+                estimated = estimate_objectives_dict(
+                    call, candidate, candidates, allow_missing_optional_profiles=True
+                )
+                row[5] = min(
+                    float(estimated["latency_sec"] or 0.0) / self.config.max_latency_sec, 1.0
+                )
+                row[6] = min(
+                    float(estimated["energy_joules"] or 0.0) / self.config.max_energy_joules, 1.0
+                )
                 row[7] = float(estimated["quality"] if estimated["quality"] is not None else 0.0)
             except (KeyError, ValueError, TypeError):
                 pass
             rows.extend(row)
-        return np.concatenate((call_features, np.asarray(rows, dtype=np.float32))).astype(np.float32)
+        return np.concatenate((call_features, np.asarray(rows, dtype=np.float32))).astype(
+            np.float32
+        )
 
     def _execute(self, call: SchedulableCall, profile: Any) -> Any:
         if isinstance(call, LLMCall):
@@ -173,7 +271,9 @@ class SchedulingEnv(gym.Env[np.ndarray, int]):
 
 
 def _all_target_ids(resources: ResourceRegistry) -> set[str]:
-    return {snapshot.profile.llm_id for snapshot in resources.llm_snapshots()} | {snapshot.profile.replica_id for snapshot in resources.tool_snapshots()}
+    return {snapshot.profile.llm_id for snapshot in resources.llm_snapshots()} | {
+        snapshot.profile.replica_id for snapshot in resources.tool_snapshots()
+    }
 
 
 def _profile_executor_pool(resources: ResourceRegistry, seed: int) -> ExecutorPool:
@@ -187,3 +287,19 @@ def _profile_executor_pool(resources: ResourceRegistry, seed: int) -> ExecutorPo
 
 def _result_success(result: Any) -> bool:
     return bool(getattr(result, "success", False))
+
+
+def _episode_objective_summary(
+    objectives: list[dict[str, float | int]],
+) -> dict[str, float | int]:
+    if not objectives:
+        return {}
+    summary: dict[str, float | int] = {
+        "latency_sec": sum(float(item["latency_sec"]) for item in objectives),
+        "energy_joules": sum(float(item["energy_joules"]) for item in objectives),
+        "deadline_miss": sum(int(item["deadline_miss"]) for item in objectives),
+        "load_imbalance_mean": sum(float(item["load_imbalance"]) for item in objectives)
+        / len(objectives),
+        "quality_mean": sum(float(item["quality"]) for item in objectives) / len(objectives),
+    }
+    return summary
