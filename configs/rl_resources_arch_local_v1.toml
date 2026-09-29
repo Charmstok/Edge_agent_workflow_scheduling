@@ -9,7 +9,7 @@ llm_profile_catalog = "configs/llm_profiles.toml"
 tool_profile_catalog = "configs/tool_profiles.toml"
 
 required_local_llm_ids = ["local-qwen35-9b", "local-qwen38-27b"]
-required_cloud_llm_ids = ["online-doubao-1", "online-doubao-2"]
+required_cloud_llm_ids = ["online-glm-1", "online-glm-2"]
 required_tool_names = ["image_preprocess", "ocr", "pdf_parse", "pdf_render"]
 minimum_replicas_per_tool = 2
 
@@ -17,6 +17,8 @@ minimum_replicas_per_tool = 2
 provider = "volcengine"
 base_url = "https://ark.cn-beijing.volces.com/api/v3"
 api_key_env = "ARK_API_KEY"
+primary_model_env = "ARK_PRIMARY_MODEL"
+base_url_env = "ARK_BASE_URL"
 secondary_model_env = "ARK_SECONDARY_MODEL"
 credential_policy = "environment_only"
 

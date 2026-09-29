@@ -9,8 +9,8 @@
   "llm_ids": [
     "local-qwen38-27b",
     "local-qwen35-9b",
-    "online-doubao",
-    "online-ark-secondary"
+    "online-glm-1",
+    "online-glm-2"
   ],
   "repeats": 1,
   "max_output_tokens": 512,

@@ -539,7 +539,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--llm-config", type=Path, default=DEFAULT_LLM_CONFIG)
-    parser.add_argument("--online-llm-id", default="online-doubao")
+    parser.add_argument("--online-llm-id", default="online-glm-1")
     parser.add_argument("--online-runs", type=int, default=1)
     parser.add_argument("--replay-trace", type=Path)
     parser.add_argument(

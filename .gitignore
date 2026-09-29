@@ -154,6 +154,8 @@ activemq-data/
 
 # Environments
 .env
+# Local Ark credentials; explicitly sourced for live cloud commands.
+/.env.ark
 .envrc
 .venv
 env/

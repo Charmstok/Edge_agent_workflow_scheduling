@@ -64,9 +64,9 @@ deployment_status = "running; /v1/models and structured Function Calling probe v
 deployment_command = "vllm/vllm-openai:latest --model Qwen/Qwen3.5-9B --served-model-name Qwen3.5-9B --trust-remote-code --tensor-parallel-size 1 --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser qwen3 --max-model-len 32768 --max-num-seqs 4 --gpu-memory-utilization 0.34"
 
 [[llm_instances]]
-llm_id = "online-doubao-1"
+llm_id = "online-glm-1"
 provider = "volcengine"
-model = "doubao-seed-2-0-lite-260428"
+model = "glm-5-3-flash-260828"
 # Preserve the existing declared capability; live verification remains false.
 capabilities = ["function_calling"]
 node_id = "volcengine-ark-api"
@@ -78,17 +78,21 @@ max_concurrency = 4
 secret_env_vars = ["ARK_API_KEY"]
 [llm_instances.deployment_config]
 requires_api_key = true
+model_env = "ARK_PRIMARY_MODEL"
+base_url_env = "ARK_BASE_URL"
 [llm_instances.deployment_config.model_parameters]
 temperature = 0
 [llm_instances.metadata]
 source_kind = "deployment_configuration"
 function_calling_verified = false
+deployment_status = "configured; live verification pending"
+resource_identity_note = "Cloud entries share a model and endpoint unless overridden"
 context_limit_note = "conservative experiment limit, not provider maximum"
 
 [[llm_instances]]
-llm_id = "online-doubao-2"
+llm_id = "online-glm-2"
 provider = "volcengine"
-model = "doubao-seed-2-0-lite-260428"
+model = "glm-5-3-flash-260828"
 capabilities = ["function_calling"]
 node_id = "volcengine-ark-api"
 platform = "cloud"
@@ -99,9 +103,13 @@ max_concurrency = 4
 secret_env_vars = ["ARK_API_KEY"]
 [llm_instances.deployment_config]
 requires_api_key = true
+model_env = "ARK_SECONDARY_MODEL"
+base_url_env = "ARK_BASE_URL"
 [llm_instances.deployment_config.model_parameters]
 temperature = 0
 [llm_instances.metadata]
 source_kind = "deployment_configuration"
 function_calling_verified = false
+deployment_status = "configured; live verification pending"
+resource_identity_note = "Cloud entries share a model and endpoint unless overridden"
 context_limit_note = "conservative experiment limit, not provider maximum"

@@ -159,20 +159,78 @@ python scripts/run_agent_demos.py \
 
 ### Online LLM configuration
 
-The online profile uses Volcengine Ark and lives in `configs/llm_profiles.toml`. API key values must not be added to that file. Export the Ark API key, then run the online demo:
+The cloud profiles in configs/llm_profiles.toml use Volcengine Ark Chat Completions
+with glm-5-3-flash-260828. Cloud resource IDs are online-glm-1 and online-glm-2. Both currently use the same
+model and endpoint; they do not represent different models or independent provider
+capacity. Live access and Function Calling remain unverified until probes pass.
 
-```bash
-export ARK_API_KEY="your-api-key"
-python scripts/run_agent_demos.py --mode online
+In an interactive **zsh** terminal, read the key without putting its value in history:
+
+```zsh
+read -rs 'ARK_API_KEY?Volcengine Ark API key: '
+print
+export ARK_API_KEY
+.venv/bin/python -c 'import os; print("ARK_API_KEY: set" if os.getenv("ARK_API_KEY") else "ARK_API_KEY: missing")'
 ```
 
-Use repeated live runs to observe variation in Tool selection and latency:
+The variable must be ARK_API_KEY, not API_KEY or OPENAI_API_KEY. Run commands
+in the same terminal so they inherit it. Setting a variable in another terminal
+does not change the environment of an already running application or agent. Do not
+paste the key into chat or save it in profiles, traces, or tracked files. This
+repository does not automatically load .env files.
 
-```bash
-python scripts/run_agent_demos.py --mode online --online-runs 5
+For later agent-run commands, you can persist the already exported key in a
+local, Git-ignored file. Run this in the **same zsh terminal** where ARK_API_KEY
+is set (the value is shell-escaped and never printed):
+
+```zsh
+if [[ -n "$ARK_API_KEY" ]]; then
+  (umask 077; printf 'export ARK_API_KEY=%q' "$ARK_API_KEY" > .env.ark)
+  chmod 600 .env.ark
+else
+  print 'Set ARK_API_KEY first.'
+fi
 ```
 
-The program creates and caches the OpenAI-compatible SDK client only when the Doubao instance is selected. The SDK sends requests to Volcengine's configured `base_url`; it does not use the OpenAI platform.
+This file contains the secret in plaintext; keep it local and do not attach it to
+reports. Each later live command must explicitly source it; the Python application
+does not auto-load it. Do not enable shell tracing while sourcing credentials:
+
+```zsh
+set +x
+source .env.ark
+PYTHONPATH=src .venv/bin/python scripts/verify_function_calling.py --llm-id online-glm-1
+```
+
+The agent can use this same command sequence in its execution shell once you have
+created the file. It must source the file for each new shell invocation, without
+reading or printing the key. Fixed profile/replay baseline runs use profile
+executors and need no API key; live cloud verification and sampling do need it.
+Missing credentials or missing calibrated profiles must be reported separately;
+loading a deployment catalog does not establish performance or quality calibration.
+
+Verify each cloud entry using the existing Function Calling verifier:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/verify_function_calling.py --llm-id online-glm-1
+PYTHONPATH=src .venv/bin/python scripts/verify_function_calling.py --llm-id online-glm-2
+```
+
+These commands make real, potentially billable requests and test both Tool-needed
+and no-Tool scenarios. Reports are saved under data/function_calling_verification/.
+They do not calibrate throughput, quality, or energy.
+
+Optional overrides are ARK_PRIMARY_MODEL, ARK_SECONDARY_MODEL, and ARK_BASE_URL.
+Leave them unset to use the TOML defaults; existing overrides take precedence. Both
+entries read ARK_API_KEY. The RL resource catalog still defaults to
+allow_cloud_calls = false; preparing cloud access does not enable cloud traffic
+in offline experiments.
+
+Run the online demo with the same environment:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/run_agent_demos.py --mode online --online-llm-id online-glm-1
+```
 
 The earlier mixed-call JSONL prototype remains available:
 
