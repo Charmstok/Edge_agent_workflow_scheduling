@@ -18,7 +18,7 @@ run_scripted = _SCRIPT.run_scripted
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKLOAD = ROOT / "configs/workload_milestone_4_1_v1.json"
+WORKLOAD = ROOT / "configs/document_agent_workload_v1.json"
 LLM_CONFIG = ROOT / "configs/llm_profiles.toml"
 
 

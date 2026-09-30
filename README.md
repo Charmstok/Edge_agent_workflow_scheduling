@@ -1,21 +1,17 @@
 # Edge Agent Workflow Scheduling
 
-## Project
+This project is a research prototype for multi-objective scheduling of dynamic
+Agent workflows. Each workflow alternates between LLM calls and Tool calls. The
+scheduler chooses among heterogeneous LLM instances and multiple replicas of the
+same Tool while tracking latency, deadline misses, quality, energy, and load balance.
 
-This project studies multi-objective scheduling for dynamic Agent calls on heterogeneous edge resources. The scheduler selects:
-
-- one of several LLM instances with different model sizes, throughput, quality, energy profiles, and queue states;
-- one of several replicas of the same Tool deployed on different edge nodes.
-
-The optimization targets are Agent end-to-end latency, deadline misses, model quality, energy, and load balance. The current prototype combines mock LLM runtimes with a real local image preprocessing Tool. Additional real Tools, models, and remote devices are introduced as experiment adapters rather than as requirements for algorithm development.
-
-The research roadmap is documented in [`docs/project_plan.md`](docs/project_plan.md).
+The repository supports local/profile execution for deterministic development and
+RL experiments, local real Tools and vLLM models for live validation, and optional
+Volcengine Ark access through OpenAI-compatible APIs.
 
 ## Install
 
-The project requires Python 3.11+ and uses `uv` to create `.venv`. Dependencies are installed from requirements files; the project does not use `uv.lock`. Use the same Python minor version on the main device and edge nodes when collecting comparable experiment results.
-
-For development on the main experiment device:
+Python 3.11 or newer is recommended. The project uses a virtual environment.
 
 ```bash
 uv venv --python 3.11 .venv
@@ -24,361 +20,94 @@ uv pip install -r requirements-dev.txt
 uv pip install --no-deps -e .
 ```
 
-For a Raspberry Pi or another Tool-only edge node:
+Optional document Tools require:
 
 ```bash
-uv venv --python 3.11 .venv
-source .venv/bin/activate
-uv pip install -r requirements-edge.txt
-uv pip install --no-deps -e .
+uv pip install -r requirements-tools.txt
 ```
 
-Use a 64-bit Raspberry Pi OS when possible so Pillow and its dependencies can use prebuilt wheels. If Pillow must build from source, install the platform's JPEG, zlib, and FreeType development packages first. Edge nodes do not install main-device development or future LLM-provider dependencies.
-
-## Run
-
-### Real document Tools
-
-OCR, PDF extraction, and PDF page rendering are optional local adapters with measured execution time, explicit pixel/page work units, bounded artifacts, and batch-wide timeouts. See `src/edge_agent_workflow_scheduling/tools/README.md` for the measurement protocol, dependency installation, and multi-objective interpretation.
+OCR also requires Tesseract. On Arch Linux:
 
 ```bash
-uv pip install --python .venv/bin/python -r requirements-tools.txt
-python scripts/run_tool_demos.py
-python scripts/run_tool_demos.py --tools ocr --batch-size 80 --scale large
+sudo pacman -S --needed tesseract tesseract-data-eng poppler
 ```
 
-OCR additionally requires a local Tesseract installation. Missing dependencies are reported as skips, not successful validation. Existing offline/profile demos remain usable.
+Generated traces, profiles, reports, and training artifacts are written under
+`data/`, which is ignored by Git. Versioned experiment inputs live in `configs/`.
 
-Collect a versioned local Tool sampling matrix with cold-start, warm-up, and measurement phases:
+## Resource Configuration
+
+- `configs/llm_profiles.toml`: local Qwen 9B/27B and Volcengine GLM profiles;
+- `configs/tool_profiles.toml`: two logical local replicas for each document Tool;
+- `configs/rl_resources_arch_local_v1.toml`: local RL resource catalog;
+- `configs/document_agent_workload_v1.json`: document tasks, fixtures, and arrival plans.
+
+Validate the resource catalog without network access:
 
 ```bash
-python scripts/sample_tools.py
+PYTHONPATH=src .venv/bin/python scripts/validate_resource_catalog.py
 ```
 
-The sampler records timing distributions, throughput, success/failure counts, queue depth, host inventory, process-tree CPU/RSS samples, and explicit unavailable GPU metrics.
+The cloud profiles use `glm-5-3-flash-260828`, endpoint
+`https://ark.cn-beijing.volces.com/api/v3`, and `ARK_API_KEY`. The resource IDs are
+`online-glm-1` and `online-glm-2`.
 
-Version-controlled experiment inputs and assumptions live in `configs/`. All generated
-samples, imported benchmarks, traces, fitted profiles, reports, and demo artifacts live in
-`data/`, which is intentionally excluded from Git.
-
-### Latency and energy profile fitting
-
-Collect the bounded local calibration matrix, then fit bucketed Tool and LLM profiles from
-the saved observations:
-
-```bash
-PYTHONPATH=src python scripts/sample_tools.py \
-  --config configs/tool_profile_sampling_v1.json \
-  --output-dir data/tool_sampling \
-  --experiment-id arch-linux-document-tools-profile-v2-20260923-r2
-
-PYTHONPATH=src python scripts/fit_profiles.py \
-  --tool-sampling-run data/tool_sampling/arch-linux-document-tools-profile-v2-20260923-r2 \
-  --llm-benchmark data/llm_sampling/qwen38-27b-local-20260911/benchmark.json \
-  --profile-version arch-linux-document-tools-calibrated-v2 \
-  --synthetic-energy-config configs/synthetic_energy_profiles_v1.json \
-  --output data/profile_calibration/arch-linux-document-tools-calibrated-v2/profiles.json \
-  --overwrite
-```
-
-The complete calibration-and-validation chain can also be run through the traceable
-orchestrator. It records input paths, SHA-256 references, the fitted catalog, and the
-holdout report in the generated profile directory:
-
-```bash
-PYTHONPATH=src python scripts/calibrate_profiles.py \
-  --tool-sampling-run data/tool_sampling/arch-linux-document-tools-profile-v2-20260923-r2 \
-  --llm-benchmark data/llm_sampling/qwen38-27b-local-20260911/benchmark.json \
-  --profile-version arch-linux-document-tools-calibrated-v2 \
-  --synthetic-energy-config configs/synthetic_energy_profiles_v1.json \
-  --profile-output data/profile_calibration/arch-linux-document-tools-calibrated-v2/profiles.json \
-  --tool-holdout-run data/tool_validation_sampling/arch-linux-document-tools-holdout-v2-20260923-r2 \
-  --validation-config configs/profile_validation_v1.json \
-  --validation-output data/profile_validation/arch-linux-document-tools-validation-v2 \
-  --overwrite --require-pass
-```
-
-The generated profile catalog is directly loadable by the existing replay/baseline resource
-loader. Calibrated profiles use exact task/input-size/concurrency buckets and reject calls
-outside their declared scope unless the fit command explicitly selects aggregate fallback.
-Local energy is currently unavailable, so measured profiles leave `energy_profile` empty and
-energy-dependent policies reject them. Synthetic energy is confined to the labeled logical
-replica and records its assumptions separately.
-For a new device or profile version, repeat `--tool-sampling-run` and choose a new output;
-the host digest is part of every Tool profile ID. Existing catalogs are not overwritten unless
-`--overwrite` is explicitly supplied.
-
-Validate the fitted profile against the independent `beta-*` holdout fixtures using the
-predeclared thresholds in `configs/profile_validation_v1.json`:
-
-```bash
-PYTHONPATH=src python scripts/sample_tools.py \
-  --config configs/tool_profile_validation_v1.json \
-  --output-dir data/tool_validation_sampling \
-  --experiment-id arch-linux-document-tools-holdout-v2-20260923-r2
-
-PYTHONPATH=src python scripts/validate_profiles.py \
-  --tool-holdout-run \
-    data/tool_validation_sampling/arch-linux-document-tools-holdout-v2-20260923-r2 \
-  --output-dir data/profile_validation/arch-linux-document-tools-validation-v2 \
-  --require-pass
-```
-
-The validator writes per-sample errors and grouped summaries by Tool, input size, and
-concurrency. It compares an aggregate-only baseline with exact fitted buckets, checks input
-hashes for calibration/holdout leakage, and separately reports distribution mismatch across
-multiple profile seeds. Missing LLM holdout and measured energy observations remain explicitly
-unvalidated rather than receiving synthetic scores.
-
-### Agent demos
-
-Run all Milestone 2 demos. Without `ARK_API_KEY`, the online demo is skipped while offline, multi-Tool, and replay verification still complete:
-
-```bash
-python scripts/run_agent_demos.py --mode all
-```
-
-Artifacts are written under `data/milestone_2_8/`. Each executed demo writes a public experiment manifest, a complete call trace, and an AgentRun or replay summary.
-
-Run one mode at a time:
-
-```bash
-python scripts/run_agent_demos.py --mode offline
-python scripts/run_agent_demos.py --mode multi-tool
-python scripts/run_agent_demos.py --mode replay
-```
-
-The replay mode reads `data/milestone_2_8/offline/trace.json` by default and compares `round_robin` with `least_queue`. Another trace or policy set can be selected explicitly:
-
-```bash
-python scripts/run_agent_demos.py \
-  --mode replay \
-  --replay-trace path/to/trace.json \
-  --replay-policies least_queue earliest_finish_time
-```
-
-### Online LLM configuration
-
-The cloud profiles in configs/llm_profiles.toml use Volcengine Ark Chat Completions
-with glm-5-3-flash-260828. Cloud resource IDs are online-glm-1 and online-glm-2. Both currently use the same
-model and endpoint; they do not represent different models or independent provider
-capacity. Live access and Function Calling remain unverified until probes pass.
-
-In an interactive **zsh** terminal, read the key without putting its value in history:
+Set the key in the current zsh terminal without displaying it:
 
 ```zsh
 read -rs 'ARK_API_KEY?Volcengine Ark API key: '
 print
 export ARK_API_KEY
-.venv/bin/python -c 'import os; print("ARK_API_KEY: set" if os.getenv("ARK_API_KEY") else "ARK_API_KEY: missing")'
 ```
 
-The variable must be ARK_API_KEY, not API_KEY or OPENAI_API_KEY. Run commands
-in the same terminal so they inherit it. Setting a variable in another terminal
-does not change the environment of an already running application or agent. Do not
-paste the key into chat or save it in profiles, traces, or tracked files. This
-repository does not automatically load .env files.
-
-For later agent-run commands, you can persist the already exported key in a
-local, Git-ignored file. Run this in the **same zsh terminal** where ARK_API_KEY
-is set (the value is shell-escaped and never printed):
+For repeated local use, persist it in the ignored `.env.ark` file:
 
 ```zsh
-if [[ -n "$ARK_API_KEY" ]]; then
-  (umask 077; printf 'export ARK_API_KEY=%q' "$ARK_API_KEY" > .env.ark)
-  chmod 600 .env.ark
-else
-  print 'Set ARK_API_KEY first.'
-fi
-```
-
-This file contains the secret in plaintext; keep it local and do not attach it to
-reports. Each later live command must explicitly source it; the Python application
-does not auto-load it. Do not enable shell tracing while sourcing credentials:
-
-```zsh
-set +x
+(umask 077; printf 'export ARK_API_KEY=%q' "$ARK_API_KEY" > .env.ark)
 source .env.ark
-PYTHONPATH=src .venv/bin/python scripts/verify_function_calling.py --llm-id online-glm-1
 ```
 
-The agent can use this same command sequence in its execution shell once you have
-created the file. It must source the file for each new shell invocation, without
-reading or printing the key. Fixed profile/replay baseline runs use profile
-executors and need no API key; live cloud verification and sampling do need it.
-Missing credentials or missing calibrated profiles must be reported separately;
-loading a deployment catalog does not establish performance or quality calibration.
+Never commit or share `.env.ark`. Fixed profile/replay experiments do not require
+the key; live cloud calls do.
 
-Verify each cloud entry using the existing Function Calling verifier:
+## Train RL
+
+The RL prototype uses a Gymnasium environment, configurable multi-objective reward,
+and a NumPy Double DQN agent. Training uses profile executors by default and does
+not require network access or cloud credentials.
+
+Train from a fixed replay trace:
 
 ```bash
-PYTHONPATH=src .venv/bin/python scripts/verify_function_calling.py --llm-id online-glm-1
-PYTHONPATH=src .venv/bin/python scripts/verify_function_calling.py --llm-id online-glm-2
+PYTHONPATH=src .venv/bin/python scripts/train_rl.py \
+  path/to/trace.json \
+  --output-dir data/rl_training \
+  --episodes 100 \
+  --eval-episodes 10 \
+  --seed 0 \
+  --profile-seed 0
 ```
 
-These commands make real, potentially billable requests and test both Tool-needed
-and no-Tool scenarios. Reports are saved under data/function_calling_verification/.
-They do not calibrate throughput, quality, or energy.
-
-Optional overrides are ARK_PRIMARY_MODEL, ARK_SECONDARY_MODEL, and ARK_BASE_URL.
-Leave them unset to use the TOML defaults; existing overrides take precedence. Both
-entries read ARK_API_KEY. The RL resource catalog still defaults to
-allow_cloud_calls = false; preparing cloud access does not enable cloud traffic
-in offline experiments.
-
-Run the online demo with the same environment:
+To create a deterministic validation trace before training:
 
 ```bash
-PYTHONPATH=src .venv/bin/python scripts/run_agent_demos.py --mode online --online-llm-id online-glm-1
-```
-
-The earlier mixed-call JSONL prototype remains available:
-
-```bash
-python scripts/run_first_demo.py --policy round_robin
-```
-
-Run static checks:
-
-```bash
-ruff check .
-```
-
-Run the versioned Milestone 3 Pareto experiment on the fixed offline replay trace:
-
-```bash
-python scripts/run_pareto.py data/milestone_2_8/offline/trace.json
-```
-
-This scans representative objective weights, runs the reference policies, and writes traceable CSV/JSON points under `data/milestone_3_7/`.
-
-## Layout
-
-```text
-src/edge_agent_workflow_scheduling/
-├── agents/       # workload generation
-├── common/       # calls, results, target state, trace schemas
-├── executors/    # provider-neutral real and profile execution adapters
-├── llm/          # mock LLM runtime
-├── profiler/     # experiment traces, manifests, and replay
-├── queue/        # mixed LLM/Tool queue
-├── scheduler/    # baseline policies
-├── tools/        # real Tool wrappers
-└── workers/      # local real-Tool execution
-
-scripts/
-├── create_vllm_containers.sh
-├── start_vllm_containers.sh
-├── fit_profiles.py
-├── run_agent_demos.py
-├── run_baselines.py
-├── run_workload.py
-├── run_first_demo.py
-├── run_pareto.py
-└── validate_profiles.py
-```
-
-### LLM measurement
-
-vLLM/Ark deployment inputs are defined in `configs/llm_profiles.toml`; bounded real
-sampling and credential-free benchmark import are provided by `scripts/sample_llms.py`.
-Both local vLLM deployments are enabled: Qwen3.5-9B at port 8000 and
-Qwen3.8-27B-FP8 at port 8001. The local experiment data currently includes 18 historical
-Qwen3.8-27B-FP8 observations and explicitly labeled measured/synthetic profiles under
-`data/`; current-deployment 9B/27B calibration and cloud measurements remain incomplete.
-These generated artifacts are not committed. The current 9B and 27B endpoints have both
-passed the repository's real end-to-end Function Calling verifier with `tool_choice=auto`,
-including a Tool-needed and a no-Tool scenario. A minimal standalone 27B curl can still
-expose XML-format content, so the repository verifier, with the full Tool schema and
-Runner prompt, is the acceptance path. Re-run `python scripts/verify_function_calling.py`
-after any parser or chat-template change.
-
-To download both model repositories with Hugging Face, pull the fixed
-`vllm/vllm-openai:latest` image, and create both Docker containers from scratch, run:
-
-```bash
-./scripts/create_vllm_containers.sh
-```
-
-The script runs `hf download Qwen/Qwen3.5-9B` and
-`hf download Qwen/Qwen3.8-27B-FP8`, then mounts the default cache
-`${HF_CACHE_DIR:-/data/huggingface}` read-only into containers
-`qwen35-9b` (port 8000) and `qwen38-27b-fp8` (port 8001). Start the existing
-containers separately with:
-
-```bash
-./scripts/start_vllm_containers.sh
-```
-
-The start script waits until both `/v1/models` endpoints respond successfully. The default
-startup timeout is 900 seconds and can be changed with `VLLM_STARTUP_TIMEOUT`.
-
-The create script is idempotent for existing container names and does not alter them.
-Set `VLLM_IMAGE`, `HF_CACHE_DIR`, `VLLM_9B_CONTAINER`, or `VLLM_27B_CONTAINER` to override
-the defaults. The create script requires the Hugging Face CLI (`hf`) and Docker with
-NVIDIA GPU support.
-
-### Task quality calibration
-
-Task scoring is defined by the versioned rules in
-`configs/workload_milestone_4_1_v1.json`. The quality sampler runs the same Agent prompt,
-Tool set, and budget over calibration and validation samples, then writes raw scores,
-confidence intervals, a holdout report, and loadable LLM profiles:
-
-```bash
-export PYTHONPATH="$PWD/src"
-python scripts/sample_quality.py --output-dir data/quality_sampling
-```
-
-For existing traces, run only the deterministic scoring and aggregation step:
-
-```bash
-python scripts/score_quality.py \
-  --trace-root data/quality_sampling/<run-timestamp> \
-  --output-dir data/quality_scoring
-```
-
-`data/quality_sampling/<run-timestamp>/quality/quality_report.json` keeps calibration
-quality separate from validation quality. The generated
-`data/quality_scoring/document-agent-quality-v1/profiles.json` contains the calibrated
-Qwen3.8-27B task profile;
-models without measured coverage retain an empty `quality_profile` and are not given a
-silent default score. The evaluator reports both selected-profile quality and the final
-task score of each AgentRun.
-
-### Milestone 4.8 workload, replay, and live status
-
-Use one entry point for the versioned workload. The scripted mode needs no API key and
-writes complete, deterministic call traces for all three document task types:
-
-```bash
-PYTHONPATH=src python scripts/run_workload.py \
+PYTHONPATH=src .venv/bin/python scripts/run_workload.py \
   --mode scripted \
-  --workload configs/workload_milestone_4_1_v1.json \
+  --workload configs/document_agent_workload_v1.json \
   --scenario low_load --split validation \
-  --output-dir data/milestone_4_8
+  --output-dir data/workload
 ```
 
-Replay never asks an LLM to choose a Tool. It reuses the saved call stream and compares
-at least two policies over the same inputs; profile jitter/failure injection is explicit:
+Training writes `checkpoint.json`, `training_history.json`, and `evaluation.json`.
+The checkpoint contains network weights, seeds, resource/workload metadata, the
+environment schema, and stable action IDs. The environment applies the same action
+mask as the baseline scheduler and rejects invalid targets before executor dispatch.
+
+## Tests
 
 ```bash
-PYTHONPATH=src python scripts/run_workload.py \
-  --mode replay --output-dir data/milestone_4_8 \
-  --policies round_robin least_queue --seeds 0 1
+PYTHONPATH=src .venv/bin/python -m pytest -q
+.venv/bin/ruff check .
 ```
 
-Live mode records the selected deployment, repeat count, and sampling parameters. It
-returns `not_validated` when credentials or verified Function Calling are unavailable.
-The local vLLM profiles use automatic Tool parsing and have been verified with the
-project Runner. A complete 27B validation run is recorded under
-`data/milestone_4_8_live_27b_verified/` (generated and ignored). Scripted scores and
-replay evaluations must not be reported as replacement live LLM quality or latency
-measurements:
-
-```bash
-PYTHONPATH=src python scripts/run_workload.py \
-  --mode live --llm-config configs/llm_profiles.toml \
-  --llm-id local-qwen35-9b --repeats 3 \
-  --output-dir data/milestone_4_8
-```
+The detailed research plan is in [`docs/project_plan.md`](docs/project_plan.md).

@@ -68,7 +68,7 @@ from edge_agent_workflow_scheduling.tools import (
 )
 from edge_agent_workflow_scheduling.workers import LocalWorker
 
-DEFAULT_WORKLOAD = Path("configs/workload_milestone_4_1_v1.json")
+DEFAULT_WORKLOAD = Path("configs/document_agent_workload_v1.json")
 DEFAULT_OUTPUT = Path("data/milestone_4_8")
 DEFAULT_LLM_CONFIG = Path("configs/llm_profiles.toml")
 DEFAULT_REPLAY_POLICIES = ("round_robin", "least_queue")

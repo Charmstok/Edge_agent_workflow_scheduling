@@ -2,7 +2,7 @@
 
 ## 1. Scope and Purpose
 
-This directory contains the fixed input artifacts used by the workload configuration `configs/workload_milestone_4_1_v1.json`. The dataset consists of synthetic PNG images and PDF documents for evaluating dynamic Agent workloads that combine LLM inference and external Tool calls.
+This directory contains the fixed input artifacts used by the workload configuration `configs/document_agent_workload_v1.json`. The dataset consists of synthetic PNG images and PDF documents for evaluating dynamic Agent workloads that combine LLM inference and external Tool calls.
 
 The fixtures are designed for research prototyping, regression testing, and profile calibration. They are not production data, a public benchmark, or a representative sample of real business documents.
 
@@ -95,7 +95,7 @@ The workload configuration defines 18 tasks:
 
 Each task specifies a reference answer and an `exact_fields` scoring rule. The score is normalized to `[0, 1]` as the fraction of reference fields that are matched correctly. Invalid JSON, missing fields, failed execution, empty output, and timeout are scored as zero. Extra output fields do not affect the score.
 
-The task definition, Tool schema, reference answer, scale metadata, and artifact references are stored in `workload_milestone_4_1_v1.json`; they are not encoded in the image or PDF files themselves.
+The task definition, Tool schema, reference answer, scale metadata, and artifact references are stored in `document_agent_workload_v1.json`; they are not encoded in the image or PDF files themselves.
 
 ## 6. Role in the Scheduling Study
 
@@ -116,7 +116,7 @@ From the repository root, prepare a deterministic request plan with:
 
 ```bash
 python scripts/prepare_workload.py \
-  configs/workload_milestone_4_1_v1.json \
+  configs/document_agent_workload_v1.json \
   --scenario burst \
   --split validation \
   --output data/workload_v1/plan.json
