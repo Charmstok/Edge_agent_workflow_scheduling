@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
@@ -12,7 +12,9 @@ if TYPE_CHECKING:
 
 from edge_agent_workflow_scheduling.agents.openai import OpenAIResponsesBackend
 from edge_agent_workflow_scheduling.common import LLMCall, LLMResult
+from edge_agent_workflow_scheduling.executors.activation import llm_activation_error
 from edge_agent_workflow_scheduling.executors.adapters import BackendLLMExecutor
+from edge_agent_workflow_scheduling.executors.llm_metadata import public_llm_value, request_metadata
 from edge_agent_workflow_scheduling.resources import LLMInstanceProfile
 from edge_agent_workflow_scheduling.tools import ToolSpec
 
@@ -42,10 +44,30 @@ class OpenAIResponsesExecutor:
         tools: list[ToolSpec] | None = None,
         timeout_sec: float | None = None,
     ) -> LLMResult:
-        return self._adapter.execute(
+        result = self._adapter.execute(
             llm_call,
             tools=tools,
             timeout_sec=timeout_sec,
+        )
+        metadata = {
+            **result.metadata,
+            **request_metadata(
+                self.profile,
+                llm_call,
+                parameters=self.model_parameters,
+                tools=tools,
+                timeout_sec=timeout_sec or 120.0,
+                elapsed_sec=result.inference_time_sec,
+            ),
+        }
+        return replace(
+            result,
+            output_items=public_llm_value(result.output_items, self.profile),
+            output_text=public_llm_value(result.output_text, self.profile),
+            response_id=public_llm_value(result.response_id, self.profile),
+            response_model=public_llm_value(result.response_model, self.profile),
+            error_message=public_llm_value(result.error_message, self.profile),
+            metadata=public_llm_value(metadata, self.profile),
         )
 
 
@@ -66,6 +88,9 @@ def create_openai_responses_executor(
 
 def create_openai_client(profile: LLMInstanceProfile) -> OpenAI:
     """Build a client without automatic retries so measurement budgets remain bounded."""
+    invalid = llm_activation_error(profile)
+    if invalid:
+        raise RuntimeError(invalid[1])
     try:
         from openai import OpenAI
     except ImportError as exc:

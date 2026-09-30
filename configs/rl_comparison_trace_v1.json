@@ -1,0 +1,650 @@
+{
+  "calls": [
+    {
+      "agent_id": "synthetic-agent",
+      "call_digest": "569ee1996c5d1243f8df393e583b096cbeefa347eb5d79966e3e073ec42099a1",
+      "call_id": "rl-comparison-fixed-run-v1-llm-0",
+      "call_kind": "llm",
+      "call_payload": {
+        "agent_id": "synthetic-agent",
+        "context_length": 24,
+        "created_at": "2026-09-30T00:00:00+00:00",
+        "deadline_sec": 0.35,
+        "estimated_output_tokens": 12,
+        "input_items": [
+          {
+            "content": "Synthetic turn 0",
+            "role": "user"
+          }
+        ],
+        "input_tokens": 12,
+        "llm_call_id": "rl-comparison-fixed-run-v1-llm-0",
+        "metadata": {
+          "task_type": "default"
+        },
+        "model_name": null,
+        "priority": 0,
+        "required_capabilities": [
+          "function_calling"
+        ],
+        "run_id": "rl-comparison-fixed-run-v1",
+        "status": "created",
+        "turn_index": 0
+      },
+      "created_at": "2026-09-30T00:00:00+00:00",
+      "decided_at": "2026-09-30T00:00:00+00:00",
+      "energy_joules": 0.0,
+      "error_code": null,
+      "error_message": null,
+      "estimated_objectives": null,
+      "execution_time_sec": 0.0,
+      "finished_at": "2026-09-30T00:00:00+00:00",
+      "function_call_id": null,
+      "function_call_output": null,
+      "input_transfer_time_sec": 0.0,
+      "model_name": null,
+      "output_transfer_time_sec": 0.0,
+      "parameter_summary": {
+        "input_digest": "e594dd50ca722ea49dcc58981a2384f0dd1fdeac73b3bdf1d127f7406c2830bc"
+      },
+      "policy_name": "fixture",
+      "queue_wait_time_sec": 0.0,
+      "raw_response_items": [],
+      "result_metadata": {},
+      "run_id": "rl-comparison-fixed-run-v1",
+      "selected_target": "offline-llm-profile",
+      "sequence_id": 0,
+      "status": "created",
+      "success": true,
+      "timeout": false,
+      "tool_name": null,
+      "total_latency_sec": 0.0,
+      "turn_index": 0
+    },
+    {
+      "agent_id": "synthetic-agent",
+      "call_digest": "37bda8b91d3112a77db61705870100baeb78cf38319e3525b30c759d45d1f532",
+      "call_id": "rl-comparison-fixed-run-v1-tool-0-1",
+      "call_kind": "tool",
+      "call_payload": {
+        "agent_id": "synthetic-agent",
+        "arguments": {
+          "input_uri": "configs/workload_fixtures_v1/alpha-small.png",
+          "operation_repeat": 1,
+          "operations": [
+            "grayscale"
+          ]
+        },
+        "call_id": "function-0-1",
+        "created_at": "2026-09-30T00:00:00+00:00",
+        "deadline_sec": 0.12,
+        "metadata": {
+          "task_type": "default"
+        },
+        "priority": 0,
+        "required_capabilities": [],
+        "run_id": "rl-comparison-fixed-run-v1",
+        "status": "created",
+        "tool_call_id": "rl-comparison-fixed-run-v1-tool-0-1",
+        "tool_name": "image_preprocess",
+        "turn_index": 0
+      },
+      "created_at": "2026-09-30T00:00:00+00:00",
+      "decided_at": "2026-09-30T00:00:00+00:00",
+      "energy_joules": 0.0,
+      "error_code": null,
+      "error_message": null,
+      "estimated_objectives": null,
+      "execution_time_sec": 0.0,
+      "finished_at": "2026-09-30T00:00:00+00:00",
+      "function_call_id": "function-0-1",
+      "function_call_output": null,
+      "input_transfer_time_sec": 0.0,
+      "model_name": null,
+      "output_transfer_time_sec": 0.0,
+      "parameter_summary": {
+        "arguments_digest": "884f5c6be939ccd5244b6e822529cad0340c0ac0494e23c4313756a2a5563aec"
+      },
+      "policy_name": "fixture",
+      "queue_wait_time_sec": 0.0,
+      "raw_response_items": [],
+      "result_metadata": {},
+      "run_id": "rl-comparison-fixed-run-v1",
+      "selected_target": "image-profile",
+      "sequence_id": 1,
+      "status": "created",
+      "success": true,
+      "timeout": false,
+      "tool_name": "image_preprocess",
+      "total_latency_sec": 0.0,
+      "turn_index": 0
+    },
+    {
+      "agent_id": "synthetic-agent",
+      "call_digest": "9a321a470594c17afd2d67c0931ed13eb3d4f8dc8ec5702ee9ff47fe804baaca",
+      "call_id": "rl-comparison-fixed-run-v1-tool-0-2",
+      "call_kind": "tool",
+      "call_payload": {
+        "agent_id": "synthetic-agent",
+        "arguments": {
+          "input_uri": "configs/workload_fixtures_v1/alpha-small.png",
+          "operation_repeat": 1,
+          "operations": [
+            "grayscale"
+          ]
+        },
+        "call_id": "function-0-2",
+        "created_at": "2026-09-30T00:00:00+00:00",
+        "deadline_sec": 0.12,
+        "metadata": {
+          "task_type": "default"
+        },
+        "priority": 0,
+        "required_capabilities": [],
+        "run_id": "rl-comparison-fixed-run-v1",
+        "status": "created",
+        "tool_call_id": "rl-comparison-fixed-run-v1-tool-0-2",
+        "tool_name": "image_preprocess",
+        "turn_index": 0
+      },
+      "created_at": "2026-09-30T00:00:00+00:00",
+      "decided_at": "2026-09-30T00:00:00+00:00",
+      "energy_joules": 0.0,
+      "error_code": null,
+      "error_message": null,
+      "estimated_objectives": null,
+      "execution_time_sec": 0.0,
+      "finished_at": "2026-09-30T00:00:00+00:00",
+      "function_call_id": "function-0-2",
+      "function_call_output": null,
+      "input_transfer_time_sec": 0.0,
+      "model_name": null,
+      "output_transfer_time_sec": 0.0,
+      "parameter_summary": {
+        "arguments_digest": "884f5c6be939ccd5244b6e822529cad0340c0ac0494e23c4313756a2a5563aec"
+      },
+      "policy_name": "fixture",
+      "queue_wait_time_sec": 0.0,
+      "raw_response_items": [],
+      "result_metadata": {},
+      "run_id": "rl-comparison-fixed-run-v1",
+      "selected_target": "image-profile",
+      "sequence_id": 2,
+      "status": "created",
+      "success": true,
+      "timeout": false,
+      "tool_name": "image_preprocess",
+      "total_latency_sec": 0.0,
+      "turn_index": 0
+    },
+    {
+      "agent_id": "synthetic-agent",
+      "call_digest": "8149bf8db79e84069b8c08eadda6bd8992c77e6bebe667df7bc29b996eaa181b",
+      "call_id": "rl-comparison-fixed-run-v1-llm-1",
+      "call_kind": "llm",
+      "call_payload": {
+        "agent_id": "synthetic-agent",
+        "context_length": 30,
+        "created_at": "2026-09-30T00:00:01+00:00",
+        "deadline_sec": 0.35,
+        "estimated_output_tokens": 12,
+        "input_items": [
+          {
+            "content": "Synthetic turn 1",
+            "role": "user"
+          }
+        ],
+        "input_tokens": 18,
+        "llm_call_id": "rl-comparison-fixed-run-v1-llm-1",
+        "metadata": {
+          "task_type": "default"
+        },
+        "model_name": null,
+        "priority": 0,
+        "required_capabilities": [
+          "function_calling"
+        ],
+        "run_id": "rl-comparison-fixed-run-v1",
+        "status": "created",
+        "turn_index": 1
+      },
+      "created_at": "2026-09-30T00:00:01+00:00",
+      "decided_at": "2026-09-30T00:00:01+00:00",
+      "energy_joules": 0.0,
+      "error_code": null,
+      "error_message": null,
+      "estimated_objectives": null,
+      "execution_time_sec": 0.0,
+      "finished_at": "2026-09-30T00:00:01+00:00",
+      "function_call_id": null,
+      "function_call_output": null,
+      "input_transfer_time_sec": 0.0,
+      "model_name": null,
+      "output_transfer_time_sec": 0.0,
+      "parameter_summary": {
+        "input_digest": "9812cb74ef7e4e09dc4043a0d645effbf39eec492b352d6b458ebb9af9be680e"
+      },
+      "policy_name": "fixture",
+      "queue_wait_time_sec": 0.0,
+      "raw_response_items": [],
+      "result_metadata": {},
+      "run_id": "rl-comparison-fixed-run-v1",
+      "selected_target": "offline-llm-profile",
+      "sequence_id": 3,
+      "status": "created",
+      "success": true,
+      "timeout": false,
+      "tool_name": null,
+      "total_latency_sec": 0.0,
+      "turn_index": 1
+    },
+    {
+      "agent_id": "synthetic-agent",
+      "call_digest": "f6ad584f56253b7dc5e7914bdd3eb89f7d6381c67b9ba7d9b84ce68f7aeb5f07",
+      "call_id": "rl-comparison-fixed-run-v1-tool-1-1",
+      "call_kind": "tool",
+      "call_payload": {
+        "agent_id": "synthetic-agent",
+        "arguments": {
+          "input_uri": "configs/workload_fixtures_v1/alpha-small.png",
+          "operation_repeat": 1,
+          "operations": [
+            "grayscale"
+          ]
+        },
+        "call_id": "function-1-1",
+        "created_at": "2026-09-30T00:00:01+00:00",
+        "deadline_sec": 0.12,
+        "metadata": {
+          "task_type": "default"
+        },
+        "priority": 0,
+        "required_capabilities": [],
+        "run_id": "rl-comparison-fixed-run-v1",
+        "status": "created",
+        "tool_call_id": "rl-comparison-fixed-run-v1-tool-1-1",
+        "tool_name": "image_preprocess",
+        "turn_index": 1
+      },
+      "created_at": "2026-09-30T00:00:01+00:00",
+      "decided_at": "2026-09-30T00:00:01+00:00",
+      "energy_joules": 0.0,
+      "error_code": null,
+      "error_message": null,
+      "estimated_objectives": null,
+      "execution_time_sec": 0.0,
+      "finished_at": "2026-09-30T00:00:01+00:00",
+      "function_call_id": "function-1-1",
+      "function_call_output": null,
+      "input_transfer_time_sec": 0.0,
+      "model_name": null,
+      "output_transfer_time_sec": 0.0,
+      "parameter_summary": {
+        "arguments_digest": "884f5c6be939ccd5244b6e822529cad0340c0ac0494e23c4313756a2a5563aec"
+      },
+      "policy_name": "fixture",
+      "queue_wait_time_sec": 0.0,
+      "raw_response_items": [],
+      "result_metadata": {},
+      "run_id": "rl-comparison-fixed-run-v1",
+      "selected_target": "image-profile",
+      "sequence_id": 4,
+      "status": "created",
+      "success": true,
+      "timeout": false,
+      "tool_name": "image_preprocess",
+      "total_latency_sec": 0.0,
+      "turn_index": 1
+    },
+    {
+      "agent_id": "synthetic-agent",
+      "call_digest": "83c14d880eba8dbbb2f5ebbac99321da502fe6708321c1878b961780b6a5daa8",
+      "call_id": "rl-comparison-fixed-run-v1-tool-1-2",
+      "call_kind": "tool",
+      "call_payload": {
+        "agent_id": "synthetic-agent",
+        "arguments": {
+          "input_uri": "configs/workload_fixtures_v1/alpha-small.png",
+          "operation_repeat": 1,
+          "operations": [
+            "grayscale"
+          ]
+        },
+        "call_id": "function-1-2",
+        "created_at": "2026-09-30T00:00:01+00:00",
+        "deadline_sec": 0.12,
+        "metadata": {
+          "task_type": "default"
+        },
+        "priority": 0,
+        "required_capabilities": [],
+        "run_id": "rl-comparison-fixed-run-v1",
+        "status": "created",
+        "tool_call_id": "rl-comparison-fixed-run-v1-tool-1-2",
+        "tool_name": "image_preprocess",
+        "turn_index": 1
+      },
+      "created_at": "2026-09-30T00:00:01+00:00",
+      "decided_at": "2026-09-30T00:00:01+00:00",
+      "energy_joules": 0.0,
+      "error_code": null,
+      "error_message": null,
+      "estimated_objectives": null,
+      "execution_time_sec": 0.0,
+      "finished_at": "2026-09-30T00:00:01+00:00",
+      "function_call_id": "function-1-2",
+      "function_call_output": null,
+      "input_transfer_time_sec": 0.0,
+      "model_name": null,
+      "output_transfer_time_sec": 0.0,
+      "parameter_summary": {
+        "arguments_digest": "884f5c6be939ccd5244b6e822529cad0340c0ac0494e23c4313756a2a5563aec"
+      },
+      "policy_name": "fixture",
+      "queue_wait_time_sec": 0.0,
+      "raw_response_items": [],
+      "result_metadata": {},
+      "run_id": "rl-comparison-fixed-run-v1",
+      "selected_target": "image-profile",
+      "sequence_id": 5,
+      "status": "created",
+      "success": true,
+      "timeout": false,
+      "tool_name": "image_preprocess",
+      "total_latency_sec": 0.0,
+      "turn_index": 1
+    },
+    {
+      "agent_id": "synthetic-agent",
+      "call_digest": "2e197e420271e5a541603b4e1b97095c2ce2d683b07b18461d9b457d8008d257",
+      "call_id": "rl-comparison-fixed-run-v1-llm-2",
+      "call_kind": "llm",
+      "call_payload": {
+        "agent_id": "synthetic-agent",
+        "context_length": 36,
+        "created_at": "2026-09-30T00:00:02+00:00",
+        "deadline_sec": 0.35,
+        "estimated_output_tokens": 12,
+        "input_items": [
+          {
+            "content": "Synthetic turn 2",
+            "role": "user"
+          }
+        ],
+        "input_tokens": 24,
+        "llm_call_id": "rl-comparison-fixed-run-v1-llm-2",
+        "metadata": {
+          "task_type": "default"
+        },
+        "model_name": null,
+        "priority": 0,
+        "required_capabilities": [
+          "function_calling"
+        ],
+        "run_id": "rl-comparison-fixed-run-v1",
+        "status": "created",
+        "turn_index": 2
+      },
+      "created_at": "2026-09-30T00:00:02+00:00",
+      "decided_at": "2026-09-30T00:00:02+00:00",
+      "energy_joules": 0.0,
+      "error_code": null,
+      "error_message": null,
+      "estimated_objectives": null,
+      "execution_time_sec": 0.0,
+      "finished_at": "2026-09-30T00:00:02+00:00",
+      "function_call_id": null,
+      "function_call_output": null,
+      "input_transfer_time_sec": 0.0,
+      "model_name": null,
+      "output_transfer_time_sec": 0.0,
+      "parameter_summary": {
+        "input_digest": "3f648b9fe0066c4da4ca5638a3aca5d577548a7aa43164865fe26acd94a7713a"
+      },
+      "policy_name": "fixture",
+      "queue_wait_time_sec": 0.0,
+      "raw_response_items": [],
+      "result_metadata": {},
+      "run_id": "rl-comparison-fixed-run-v1",
+      "selected_target": "offline-llm-profile",
+      "sequence_id": 6,
+      "status": "created",
+      "success": true,
+      "timeout": false,
+      "tool_name": null,
+      "total_latency_sec": 0.0,
+      "turn_index": 2
+    }
+  ],
+  "manifest": {
+    "agent_limits": {
+      "max_rounds": 8,
+      "max_tool_calls": 16,
+      "timeout_sec": 120.0
+    },
+    "code_version": "synthetic-fixture-v1",
+    "dataset_id": "rl-comparison-workload-v1",
+    "experiment_id": "rl-comparison-workload-v1",
+    "llm_profile_version": "pareto-profile-v1",
+    "manifest_version": 1,
+    "mode": "replay",
+    "model_endpoints": [],
+    "profile_seed": 0,
+    "provider_seed": null,
+    "resource_profiles": {
+      "llm_instances": [
+        {
+          "profile": {
+            "base_url": null,
+            "capabilities": [
+              "function_calling"
+            ],
+            "context_window_tokens": 4096,
+            "deployment_config": {},
+            "energy_profile": {
+              "joules_per_token": 0.01
+            },
+            "executor_type": "profile",
+            "llm_id": "offline-llm-profile",
+            "max_concurrency": 1,
+            "metadata": {
+              "profile_version": "pareto-profile-v1"
+            },
+            "model": "research-fast-quality",
+            "model_size_b": 7.0,
+            "node_id": "edge-fast",
+            "platform": "profile",
+            "provider": "profile",
+            "quality_profile": {
+              "default": 0.95
+            },
+            "secret_env_vars": [],
+            "token_profile": {
+              "tokens_per_sec": 120.0
+            }
+          },
+          "state": {
+            "avg_latency_sec": 0.0,
+            "compute_util": 0.0,
+            "is_online": true,
+            "llm_id": "offline-llm-profile",
+            "memory_util": 0.0,
+            "queue_len": 0,
+            "running_requests": 0,
+            "tokens_per_sec": 0.0,
+            "updated_at": "2026-08-20T00:00:00+00:00"
+          }
+        },
+        {
+          "profile": {
+            "base_url": null,
+            "capabilities": [
+              "function_calling"
+            ],
+            "context_window_tokens": 4096,
+            "deployment_config": {},
+            "energy_profile": {
+              "joules_per_token": 0.001
+            },
+            "executor_type": "profile",
+            "llm_id": "offline-llm-scripted",
+            "max_concurrency": 1,
+            "metadata": {
+              "profile_version": "pareto-profile-v1"
+            },
+            "model": "research-efficient",
+            "model_size_b": 3.0,
+            "node_id": "edge-efficient",
+            "platform": "profile",
+            "provider": "profile",
+            "quality_profile": {
+              "default": 0.7
+            },
+            "secret_env_vars": [],
+            "token_profile": {
+              "tokens_per_sec": 60.0
+            }
+          },
+          "state": {
+            "avg_latency_sec": 0.0,
+            "compute_util": 0.0,
+            "is_online": true,
+            "llm_id": "offline-llm-scripted",
+            "memory_util": 0.0,
+            "queue_len": 0,
+            "running_requests": 0,
+            "tokens_per_sec": 0.0,
+            "updated_at": "2026-08-20T00:00:00+00:00"
+          }
+        }
+      ],
+      "tool_replicas": [
+        {
+          "profile": {
+            "capabilities": [],
+            "deployment_config": {},
+            "energy_profile": {
+              "joules_per_call": 1.5
+            },
+            "executor_type": "profile",
+            "implementation_version": "equivalent-v1",
+            "latency_profile": {
+              "execution_time_sec": 0.04
+            },
+            "max_concurrency": 1,
+            "metadata": {
+              "profile_version": "pareto-profile-v1"
+            },
+            "node_id": "edge-fast",
+            "platform": "profile",
+            "quality_profile": {
+              "default": 0.95
+            },
+            "replica_id": "image-profile",
+            "secret_env_vars": [],
+            "tool_name": "image_preprocess"
+          },
+          "state": {
+            "avg_execution_time_sec": 0.0,
+            "cpu_util": 0.0,
+            "is_online": true,
+            "memory_util": 0.0,
+            "network_latency_ms": 0.0,
+            "queue_len": 0,
+            "recent_failure_rate": 0.0,
+            "replica_id": "image-profile",
+            "running_tasks": 0,
+            "updated_at": "2026-08-20T00:00:00+00:00"
+          }
+        },
+        {
+          "profile": {
+            "capabilities": [],
+            "deployment_config": {},
+            "energy_profile": {
+              "joules_per_call": 0.2
+            },
+            "executor_type": "profile",
+            "implementation_version": "equivalent-v1",
+            "latency_profile": {
+              "execution_time_sec": 0.16
+            },
+            "max_concurrency": 1,
+            "metadata": {
+              "profile_version": "pareto-profile-v1"
+            },
+            "node_id": "edge-efficient",
+            "platform": "profile",
+            "quality_profile": {
+              "default": 0.7
+            },
+            "replica_id": "image-real",
+            "secret_env_vars": [],
+            "tool_name": "image_preprocess"
+          },
+          "state": {
+            "avg_execution_time_sec": 0.0,
+            "cpu_util": 0.0,
+            "is_online": true,
+            "memory_util": 0.0,
+            "network_latency_ms": 0.0,
+            "queue_len": 0,
+            "recent_failure_rate": 0.0,
+            "replica_id": "image-real",
+            "running_tasks": 0,
+            "updated_at": "2026-08-20T00:00:00+00:00"
+          }
+        }
+      ]
+    },
+    "run_started_at": "2026-09-30T00:00:00+00:00",
+    "sample_ids": [
+      "synthetic-fixed-agent-v1"
+    ],
+    "sampling_parameters": {},
+    "scheduler_name": "fixture",
+    "scheduler_parameters": {},
+    "scheduler_seed": 0,
+    "system_prompt": "Synthetic scheduling replay.",
+    "system_prompt_version": "synthetic-v1",
+    "tool_implementation_versions": {
+      "image_preprocess": [
+        "equivalent-v1"
+      ]
+    },
+    "tool_order": [
+      "image_preprocess"
+    ],
+    "tool_profile_version": "pareto-profile-v1",
+    "tool_schemas": [],
+    "user_template": "{task}",
+    "user_template_version": "synthetic-v1",
+    "workload_parameters": {
+      "arrival_model": "single_AgentRun; same_turn_tools_ready_together; subsequent_turns_dependency_driven",
+      "arrival_offset_sec": 0.0,
+      "measurement_scope": "synthetic; no hardware claims"
+    }
+  },
+  "run": {
+    "agent_id": "synthetic-agent",
+    "end_to_end_latency_sec": 0.0,
+    "error_code": null,
+    "error_message": null,
+    "final_output": "Synthetic fixture.",
+    "finished_at": "2026-09-30T00:00:00+00:00",
+    "function_call_outputs": [],
+    "llm_call_count": 3,
+    "raw_response_items": [],
+    "run_id": "rl-comparison-fixed-run-v1",
+    "started_at": "2026-09-30T00:00:00+00:00",
+    "state_transitions": [
+      "created",
+      "completed"
+    ],
+    "status": "completed",
+    "task_id": "synthetic-fixed-agent-v1",
+    "tool_call_count": 4,
+    "total_rounds": 3
+  },
+  "trace_version": 1
+}

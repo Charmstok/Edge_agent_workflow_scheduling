@@ -1,0 +1,28 @@
+{
+  "experiment_id": "rl-baseline-balanced-v1",
+  "trace": "configs/rl_comparison_trace_v1.json",
+  "resource_profile": "configs/pareto_resource_profiles_v1.json",
+  "resource_profile_version": "pareto-profile-v1",
+  "baseline_reference": "Baseline policies; pareto-profile-v1 metric convention",
+  "scheduler_seeds": [0, 1],
+  "profile_seeds": [0, 1, 2, 3],
+  "training_profile_seed": 100,
+  "profile_jitter_ratio": 0.1,
+  "profile_failure_rate": 0.0,
+  "min_quality": 0.8,
+  "objective_weights": {
+    "latency": 0.2, "energy": 0.2, "deadline_miss": 0.2,
+    "load_imbalance": 0.2, "quality": 0.2
+  },
+  "objective_normalization": {"latency_ref_sec": 1.0, "energy_ref_joules": 1.0},
+  "training": {
+    "episodes": 200,
+    "batch_size": 16,
+    "warmup_steps": 16,
+    "epsilon_decay_steps": 1400
+  },
+  "statistical_protocol": {
+    "test": "paired_exact_sign_flip", "unit": "profile_seed",
+    "alternative": "rl_cost_lower", "alpha": 0.05, "correction": "bonferroni_8"
+  }
+}

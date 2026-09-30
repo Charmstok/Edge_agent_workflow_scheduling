@@ -464,4 +464,6 @@ class TraceRecord(SerializableSchema):
     input_tokens: int = 0
     output_tokens: int = 0
     error_message: str | None = None
+    error_code: str | None = None
+    result_metadata: dict[str, Any] = field(default_factory=dict)
     recorded_at: str = field(default_factory=_utc_now_iso)

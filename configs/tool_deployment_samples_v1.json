@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "version": "local-tool-deployment-samples-v1",
+  "samples": [
+    {
+      "sample_id": "preprocess-alpha-small-v1", "tool_name": "image_preprocess",
+      "arguments": {"input_uri": "workload_fixtures_v1/alpha-small.png", "operations": ["grayscale", "resize"], "operation_repeat": 1},
+      "expected": {"input_width": 640, "input_height": 480, "output_width": 320, "output_height": 240, "output_mode": "L", "operation_count": 2},
+      "numeric_tolerances": {}
+    },
+    {
+      "sample_id": "invoice-alpha-small-v1", "tool_name": "ocr",
+      "arguments": {"input_uri": "workload_fixtures_v1/alpha-small.png"},
+      "expected": {"text_contains": ["INV-101", "ALPHA", "125.00", "USD"], "input_count": 1, "image_count": 1, "image_pixels": 307200},
+      "numeric_tolerances": {"image_pixels": 0}
+    },
+    {
+      "sample_id": "report-alpha-small-v1", "tool_name": "pdf_parse",
+      "arguments": {"input_uri": "workload_fixtures_v1/alpha-small.pdf"},
+      "expected": {"text_contains": ["ALPHA", "Approved budget: 150.00", "Status: APPROVED"], "input_count": 1, "page_count": 1},
+      "numeric_tolerances": {"page_count": 0}
+    },
+    {
+      "sample_id": "render-alpha-small-v1", "tool_name": "pdf_render",
+      "arguments": {"input_uri": "workload_fixtures_v1/alpha-small.pdf"},
+      "expected": {"input_count": 1, "page_count": 1, "image_count": 1},
+      "numeric_tolerances": {}
+    }
+  ]
+}

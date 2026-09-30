@@ -10,6 +10,7 @@ from typing import Any
 from edge_agent_workflow_scheduling.common import ToolResult
 from edge_agent_workflow_scheduling.resources import ToolConsistencySample
 from edge_agent_workflow_scheduling.tools import resolve_local_path
+from edge_agent_workflow_scheduling.tools.deployment import canonical_digest, canonical_tool_output
 
 
 def compare_tool_results(
@@ -47,12 +48,17 @@ def compare_tool_results(
         else:
             try:
                 output = result.output
-                text_bytes = resolve_local_path(output["text_uri"], Path(".")).read_bytes()
-                if hashlib.sha256(text_bytes).hexdigest() != output["text_sha256"]:
-                    raise ValueError("text artifact digest mismatch")
-                normalized = " ".join(text_bytes.decode("utf-8").split())
-                digests.append(hashlib.sha256(normalized.encode()).hexdigest())
-                observations = {**metadata.get("work_features", {}), **output}
+                if sample.tool_name in {"image_preprocess", "pdf_render"}:
+                    content = canonical_tool_output(sample.tool_name, output)
+                    normalized = ""
+                    digests.append(canonical_digest(content))
+                else:
+                    text_bytes = resolve_local_path(output["text_uri"], Path(".")).read_bytes()
+                    if hashlib.sha256(text_bytes).hexdigest() != output["text_sha256"]:
+                        raise ValueError("text artifact digest mismatch")
+                    normalized = " ".join(text_bytes.decode("utf-8").split())
+                    digests.append(hashlib.sha256(normalized.encode()).hexdigest())
+                observations = {**metadata, **metadata.get("work_features", {}), **output}
                 for name, expected in sample.expected.items():
                     if name == "text_contains":
                         for fragment in expected:
@@ -87,6 +93,7 @@ def compare_tool_results(
         "tool_name": sample.tool_name,
         "passed": all(report["passed"] for report in reports) and matching_content,
         "matching_normalized_text": matching_content,
+        "matching_content": matching_content,
         "same_implementation_configuration": same_configuration,
         "requires_separate_quality_profile": not same_configuration or not matching_content,
         "replicas": reports,

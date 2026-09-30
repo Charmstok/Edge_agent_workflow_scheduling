@@ -1,0 +1,13 @@
+{
+  "version": "llm-deployment-validation-v1",
+  "catalog": "configs/llm_profiles.toml",
+  "required_local_ids": ["local-qwen35-9b", "local-qwen38-27b"],
+  "required_cloud_ids": ["online-glm-1", "online-glm-2"],
+  "offline_rate_scope": "synthetic_contract_fixture_not_hardware_measurement",
+  "offline_tokens_per_sec": {"local-qwen35-9b": 100, "local-qwen38-27b": 50},
+  "health_timeout_sec": 3,
+  "request_timeout_sec": 60,
+  "max_output_tokens": 256,
+  "tool_catalog": "configs/tool_profiles.toml",
+  "tool_consistency_samples": "configs/tool_deployment_samples_v1.json"
+}

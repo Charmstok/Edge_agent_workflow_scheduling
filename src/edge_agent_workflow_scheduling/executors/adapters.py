@@ -174,7 +174,7 @@ class LocalToolExecutor:
         result = self.worker.run_tool(tool_call, timeout_sec=remaining)
         result = replace(
             result,
-            queue_wait_time_sec=self.queue_wait_time_sec,
+            queue_wait_time_sec=result.queue_wait_time_sec + self.queue_wait_time_sec,
             input_transfer_time_sec=self.input_transfer_time_sec,
             output_transfer_time_sec=self.output_transfer_time_sec,
         )

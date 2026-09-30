@@ -6,6 +6,7 @@ import json
 import os
 import tomllib
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from edge_agent_workflow_scheduling.resources import LLMInstanceProfile, ToolReplicaProfile
 
@@ -29,10 +30,28 @@ def load_llm_profiles(path: str | Path) -> list[LLMInstanceProfile]:
         if not isinstance(raw_profile, dict):
             raise ValueError(f"llm_instances[{index}] must be a TOML table")
         deployment = raw_profile.get("deployment_config", {})
+        if not isinstance(deployment, dict):
+            raise ValueError(f"llm_instances[{index}].deployment_config must be a table")
+        overrides = {}
         for field, env_field in (("model", "model_env"), ("base_url", "base_url_env")):
             env_name = deployment.get(env_field)
-            if env_name and os.getenv(env_name):
-                raw_profile[field] = os.environ[env_name]
+            if env_name and os.getenv(env_name, "").strip():
+                raw_profile[field] = os.environ[env_name].strip()
+                overrides[field] = env_name
+        if raw_profile.get("base_url"):
+            url = urlsplit(raw_profile["base_url"])
+            if (
+                url.scheme not in {"http", "https"}
+                or not url.hostname
+                or (url.username or url.password or url.query or url.fragment)
+            ):
+                raise ValueError(
+                    "LLM endpoint must be an HTTP(S) URL without credentials, query or fragment"
+                )
+        raw_profile["metadata"] = {
+            **raw_profile.get("metadata", {}),
+            "resolved_environment_overrides": overrides,
+        }
         try:
             profile = LLMInstanceProfile.from_dict(raw_profile)
         except (TypeError, ValueError) as exc:

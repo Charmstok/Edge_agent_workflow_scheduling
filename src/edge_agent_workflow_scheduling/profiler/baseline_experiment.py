@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta
+from heapq import heappop, heappush
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -39,6 +40,7 @@ from edge_agent_workflow_scheduling.scheduler.objectives import (
     ObjectiveNormalization,
     ObjectiveWeights,
 )
+from edge_agent_workflow_scheduling.scheduler.types import call_id_for
 
 DEFAULT_BASELINE_POLICIES = (
     "random",
@@ -210,12 +212,11 @@ def run_baseline_experiment(
         for seed in run_seeds:
             policy_min_quality = (
                 DEFAULT_MIN_QUALITY
-                if min_quality is None
-                and policy_name == "quality_constrained_earliest_finish_time"
+                if min_quality is None and policy_name == "quality_constrained_earliest_finish_time"
                 else min_quality
             )
             run_dir = experiment_dir / f"{_slug(policy_name)}-seed-{seed}"
-            result = _run_one_policy(
+            result = run_replay_policy(
                 base_trace,
                 policy_name=policy_name,
                 seed=seed,
@@ -243,7 +244,7 @@ def run_baseline_experiment(
     return experiment
 
 
-def _run_one_policy(
+def run_replay_policy(
     source_trace: TraceBundle,
     *,
     policy_name: str,
@@ -256,21 +257,26 @@ def _run_one_policy(
     min_quality: float | None,
     experiment_id: str,
     output_dir: Path,
+    scheduler_factory: Any = None,
 ) -> BaselineRunResult:
+    """Evaluate a baseline or injected scheduler through the same replay engine."""
     resources = resources_from_manifest(source_trace)
-    scheduler = BaselineScheduler(
-        policy_name,
-        constraints=SchedulingConstraints(min_quality=min_quality),
-        policy_config=SchedulerPolicyConfig(
-            random_seed=seed,
-            record_objectives=True,
-            objective_weights=objective_weights,
-            objective_normalization=objective_normalization,
-        ),
+    scheduler = (
+        scheduler_factory(resources)
+        if scheduler_factory
+        else BaselineScheduler(
+            policy_name,
+            constraints=SchedulingConstraints(min_quality=min_quality),
+            policy_config=SchedulerPolicyConfig(
+                random_seed=seed,
+                record_objectives=True,
+                objective_weights=objective_weights,
+                objective_normalization=objective_normalization,
+            ),
+        )
     )
     profile_pool = _ProfileExecutorPool(
         profile_seed=profile_seed,
-        run_seed=seed,
         jitter_ratio=profile_jitter_ratio,
         failure_rate=profile_failure_rate,
     )
@@ -285,6 +291,19 @@ def _run_one_policy(
             started = perf_counter()
             decision = scheduler.schedule(call, resources=resources)
             decision_time_sec = perf_counter() - started
+            mask = resources.action_mask_details(
+                call, constraints=SchedulingConstraints(min_quality=min_quality)
+            )
+            valid_targets = {
+                target for target, valid in zip(mask.target_ids, mask.values, strict=True) if valid
+            }
+            if decision.selected_target not in valid_targets:
+                raise ValueError("scheduler selected a masked target before Executor dispatch")
+            if (
+                decision.call_id != source_call.call_id
+                or decision.call_kind != source_call.call_kind
+            ):
+                raise ValueError("scheduler changed replay call identity")
             decision_times.append(decision_time_sec)
             decisions.append({**decision.to_dict(), "decision_time_sec": decision_time_sec})
             _enqueue_resource_state(resources, call, decision.selected_target)
@@ -317,6 +336,17 @@ def _run_one_policy(
         objective_weights=objective_weights,
         objective_normalization=objective_normalization,
         min_quality=min_quality,
+    )
+    manifest = replace(
+        manifest,
+        profile_seed=profile_seed,
+        scheduler_parameters={
+            **manifest.scheduler_parameters,
+            "profile_jitter_ratio": profile_jitter_ratio,
+            "profile_failure_rate": profile_failure_rate,
+            "profile_noise_semantics": "profile_seed_call_target; independent_of_scheduler_seed",
+            **(scheduler.manifest_parameters() if scheduler_factory else {}),
+        },
     )
     generated_trace = replace(generated_trace, manifest=manifest)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -356,47 +386,40 @@ class _ProfileExecutorPool:
         self,
         *,
         profile_seed: int,
-        run_seed: int,
         jitter_ratio: float,
         failure_rate: float,
     ) -> None:
         self.profile_seed = profile_seed
-        self.run_seed = run_seed
         self.jitter_ratio = jitter_ratio
         self.failure_rate = failure_rate
-        self._llm: dict[str, ProfileLLMExecutor] = {}
-        self._tool: dict[str, ProfileToolExecutor] = {}
 
     def execute(self, call: LLMCall | ToolCall, target_id: str, resources: ResourceRegistry):
+        # Common random numbers: the same call/target pair sees the same noise
+        # regardless of scheduler seed or earlier target selections.
+        seed = self._seed_for(target_id, call_id_for(call))
         if isinstance(call, LLMCall):
             profile = resources.llm_snapshot(target_id).profile
-            executor = self._llm.get(target_id)
-            if executor is None:
-                executor = ProfileLLMExecutor(
-                    profile=profile,
-                    seed=self._seed_for(target_id),
-                    jitter_ratio=self.jitter_ratio,
-                    failure_rate=self.failure_rate,
-                )
-                self._llm[target_id] = executor
-            return executor.execute(call)
-        profile = resources.tool_snapshot(target_id).profile
-        executor = self._tool.get(target_id)
-        if executor is None:
-            executor = ProfileToolExecutor(
+            executor = ProfileLLMExecutor(
                 profile=profile,
-                seed=self._seed_for(target_id),
-                output={"mode": "replay_profile", "replica_id": target_id},
+                seed=seed,
                 jitter_ratio=self.jitter_ratio,
                 failure_rate=self.failure_rate,
             )
-            self._tool[target_id] = executor
+            return executor.execute(call)
+        profile = resources.tool_snapshot(target_id).profile
+        executor = ProfileToolExecutor(
+            profile=profile,
+            seed=seed,
+            output={"mode": "replay_profile", "replica_id": target_id},
+            jitter_ratio=self.jitter_ratio,
+            failure_rate=self.failure_rate,
+        )
         return executor.execute(call)
 
-    def _seed_for(self, target_id: str) -> int:
-        digest = hashlib.sha256(target_id.encode("utf-8")).digest()
+    def _seed_for(self, target_id: str, call_id: str) -> int:
+        digest = hashlib.sha256(json.dumps([target_id, call_id]).encode("utf-8")).digest()
         target_offset = int.from_bytes(digest[:4], "big")
-        return (self.profile_seed + self.run_seed * 1_000_003 + target_offset) % (2**32)
+        return (self.profile_seed + target_offset) % (2**32)
 
 
 def _call_trace_from_profile(
@@ -422,9 +445,7 @@ def _call_trace_from_profile(
         "queue_wait_time_sec": result.queue_wait_time_sec,
         "input_transfer_time_sec": result.input_transfer_time_sec,
         "execution_time_sec": (
-            result.inference_time_sec
-            if isinstance(call, LLMCall)
-            else result.execution_time_sec
+            result.inference_time_sec if isinstance(call, LLMCall) else result.execution_time_sec
         ),
         "output_transfer_time_sec": result.output_transfer_time_sec,
         "total_latency_sec": total_latency,
@@ -607,16 +628,23 @@ def _execute_batch(
 
     def execute_target(group: list[tuple[int, LLMCall | ToolCall]]) -> list[tuple[int, Any]]:
         results: list[tuple[int, Any]] = []
-        queued_duration = 0.0
+        target_id = assignments[group[0][0]][2].selected_target
+        profile = (
+            resources.llm_snapshot(target_id).profile
+            if isinstance(group[0][1], LLMCall)
+            else resources.tool_snapshot(target_id).profile
+        )
+        available_slots = [0.0] * profile.max_concurrency
         for index, call in group:
             result = profile_pool.execute(call, assignments[index][2].selected_target, resources)
+            queued_duration = heappop(available_slots)
+            heappush(available_slots, queued_duration + _result_duration(call, result))
             if queued_duration:
                 result = replace(
                     result,
                     queue_wait_time_sec=result.queue_wait_time_sec + queued_duration,
                 )
             results.append((index, result))
-            queued_duration += _result_duration(call, result)
         return results
 
     completed: list[Any | None] = [None] * len(assignments)
@@ -717,11 +745,15 @@ def _policies_supported_by_profiles(
         reason = None
         if policy in {"energy_aware", "weighted_objective"} and missing_energy:
             reason = "required energy profile is missing"
-        elif policy in {
-            "quality_aware",
-            "quality_constrained_earliest_finish_time",
-            "weighted_objective",
-        } and missing_quality:
+        elif (
+            policy
+            in {
+                "quality_aware",
+                "quality_constrained_earliest_finish_time",
+                "weighted_objective",
+            }
+            and missing_quality
+        ):
             reason = "required quality profile is missing"
         if reason is None:
             supported.append(policy)
@@ -762,8 +794,7 @@ def _validate_names(values: Sequence[str], field_name: str) -> tuple[str, ...]:
 def _validate_seeds(values: Sequence[int]) -> tuple[int, ...]:
     seeds = tuple(values)
     if not seeds or any(
-        isinstance(value, bool) or not isinstance(value, int) or value < 0
-        for value in seeds
+        isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in seeds
     ):
         raise ValueError("seeds must contain non-negative integers")
     if len(set(seeds)) != len(seeds):
@@ -791,8 +822,7 @@ def _profile_version(profiles: Mapping[str, Any]) -> str:
 
 def _slug(value: str) -> str:
     return "".join(
-        character if character.isalnum() or character in "._-" else "_"
-        for character in value
+        character if character.isalnum() or character in "._-" else "_" for character in value
     )
 
 

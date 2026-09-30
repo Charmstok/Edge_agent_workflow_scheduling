@@ -251,6 +251,8 @@ def build_llm_trace_record(
         input_tokens=llm_call.input_tokens,
         output_tokens=result.output_tokens,
         error_message=result.error_message,
+        error_code=result.error_code,
+        result_metadata=deepcopy(result.metadata),
     )
 
 
@@ -299,6 +301,8 @@ def build_tool_trace_record(
         input_transfer_time_sec=result.input_transfer_time_sec,
         output_transfer_time_sec=result.output_transfer_time_sec,
         error_message=result.error_message,
+        error_code=result.error_code,
+        result_metadata=deepcopy(result.metadata),
     )
 
 

@@ -14,6 +14,7 @@ max_concurrency = 2
 capabilities = ["function_calling"]
 [llm_instances.deployment_config]
 requires_api_key = false
+enabled = true
 base_url_env = "QWEN27B_BASE_URL"
 [llm_instances.deployment_config.model_parameters]
 temperature = 0
@@ -22,6 +23,11 @@ max_tokens = 256
 enable_thinking = false
 [llm_instances.metadata]
 source_kind = "deployment_configuration"
+context_limit_source = "vllm --max-model-len 32768; declared deployment limit"
+capability_source = "historical Function Calling verification; current runtime health checked separately"
+quality_status = "unavailable; no calibrated task quality in this catalog"
+throughput_status = "unavailable; no calibrated throughput in this catalog"
+energy_status = "unavailable; no energy measurement in this catalog"
 model_repository = "Qwen/Qwen3.8-27B-FP8"
 model_revision_status = "not pinned by the current deployment command"
 vllm_version = "0.29.0"
@@ -55,6 +61,11 @@ max_tokens = 256
 enable_thinking = false
 [llm_instances.metadata]
 source_kind = "deployment_configuration"
+context_limit_source = "vllm --max-model-len 32768; declared deployment limit"
+capability_source = "historical Function Calling verification; current runtime health checked separately"
+quality_status = "unavailable; no calibrated task quality in this catalog"
+throughput_status = "unavailable; no calibrated throughput in this catalog"
+energy_status = "unavailable; no energy measurement in this catalog"
 model_repository = "Qwen/Qwen3.5-9B"
 model_revision_status = "not pinned by the current deployment command"
 vllm_version = "0.29.0"
@@ -78,12 +89,18 @@ max_concurrency = 4
 secret_env_vars = ["ARK_API_KEY"]
 [llm_instances.deployment_config]
 requires_api_key = true
+enabled = false
 model_env = "ARK_PRIMARY_MODEL"
 base_url_env = "ARK_BASE_URL"
 [llm_instances.deployment_config.model_parameters]
 temperature = 0
 [llm_instances.metadata]
 source_kind = "deployment_configuration"
+context_limit_source = "conservative experiment limit; provider maximum not verified"
+capability_source = "declared function_calling; no live verification"
+quality_status = "unavailable; cloud task quality not calibrated"
+throughput_status = "unavailable; cloud throughput not calibrated"
+energy_status = "unavailable; provider energy not measured"
 function_calling_verified = false
 deployment_status = "configured; live verification pending"
 resource_identity_note = "Cloud entries share a model and endpoint unless overridden"
@@ -103,12 +120,18 @@ max_concurrency = 4
 secret_env_vars = ["ARK_API_KEY"]
 [llm_instances.deployment_config]
 requires_api_key = true
+enabled = false
 model_env = "ARK_SECONDARY_MODEL"
 base_url_env = "ARK_BASE_URL"
 [llm_instances.deployment_config.model_parameters]
 temperature = 0
 [llm_instances.metadata]
 source_kind = "deployment_configuration"
+context_limit_source = "conservative experiment limit; provider maximum not verified"
+capability_source = "declared function_calling; no live verification"
+quality_status = "unavailable; cloud task quality not calibrated"
+throughput_status = "unavailable; cloud throughput not calibrated"
+energy_status = "unavailable; provider energy not measured"
 function_calling_verified = false
 deployment_status = "configured; live verification pending"
 resource_identity_note = "Cloud entries share a model and endpoint unless overridden"

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from time import perf_counter
 from typing import Any
 
 from edge_agent_workflow_scheduling.common import LLMCall, LLMResult
 from edge_agent_workflow_scheduling.executors.base import llm_call_error, validate_timeout
+from edge_agent_workflow_scheduling.executors.llm_metadata import public_llm_value, request_metadata
 from edge_agent_workflow_scheduling.resources import LLMInstanceProfile
 from edge_agent_workflow_scheduling.tools import ToolSpec
 
@@ -73,18 +74,33 @@ class OpenAIChatExecutor:
         validate_timeout(timeout_sec)
         invalid = llm_call_error(self.profile, llm_call)
         if invalid:
-            return LLMResult(
-                llm_call_id=llm_call.llm_call_id,
-                llm_id=self.profile.llm_id,
-                success=False,
-                error_code=invalid[0],
-                error_message=invalid[1],
+            return self._finish(
+                LLMResult(
+                    llm_call_id=llm_call.llm_call_id,
+                    llm_id=self.profile.llm_id,
+                    success=False,
+                    error_code=invalid[0],
+                    error_message=invalid[1],
+                    metadata=request_metadata(
+                        self.profile,
+                        llm_call,
+                        parameters=self.model_parameters,
+                        tools=tools,
+                        timeout_sec=timeout_sec or 120.0,
+                    ),
+                )
             )
         start = perf_counter()
         metadata: dict[str, Any] = {
+            **request_metadata(
+                self.profile,
+                llm_call,
+                parameters=self.model_parameters,
+                tools=tools,
+                timeout_sec=timeout_sec or 120.0,
+            ),
             "executor_type": "openai_chat",
-            "energy_status": "unavailable",
-            "timing_scope": "client_request_including_network_and_server_wait",
+            "request_attempted": False,
         }
         try:
             options = deepcopy(self.model_parameters)
@@ -97,11 +113,18 @@ class OpenAIChatExecutor:
                 # answer instead of repeatedly reissuing the same Tool calls.
                 # The first turn remains automatic, so multi-Tool requests can
                 # still select all required Tools in one structured response.
-                if any(
-                    item.get("type") == "function_call_output"
-                    for item in llm_call.input_items
-                ):
+                if any(item.get("type") == "function_call_output" for item in llm_call.input_items):
                     options["tool_choice"] = "none"
+            metadata.update(
+                request_metadata(
+                    self.profile,
+                    llm_call,
+                    parameters={key: value for key, value in options.items() if key != "tools"},
+                    tools=tools,
+                    timeout_sec=timeout_sec or 120.0,
+                )
+            )
+            metadata["request_attempted"] = True
             response = self.client.chat.completions.create(
                 model=self.profile.model,
                 messages=chat_messages(llm_call.input_items),
@@ -109,7 +132,9 @@ class OpenAIChatExecutor:
                 stream=False,
                 **options,
             )
-            raw = response.model_dump(mode="json", exclude_none=True)
+            raw = public_llm_value(
+                response.model_dump(mode="json", exclude_none=True), self.profile
+            )
             metadata["raw_response"] = raw
             metadata["usage"] = raw.get("usage")
             choice = raw["choices"][0]
@@ -139,32 +164,49 @@ class OpenAIChatExecutor:
             code = None if success else "incomplete_response"
             if timeout_sec is not None and elapsed > timeout_sec:
                 success, code = False, "timeout"
-            return LLMResult(
-                llm_call_id=llm_call.llm_call_id,
-                llm_id=self.profile.llm_id,
-                success=success,
-                output_items=output,
-                output_text=content,
-                response_id=raw.get("id"),
-                response_model=raw.get("model"),
-                output_tokens=(raw.get("usage") or {}).get("completion_tokens", 0),
-                inference_time_sec=elapsed,
-                metadata=metadata,
-                error_code=code,
-                error_message=None if success else f"request ended with {reason}",
+            return self._finish(
+                LLMResult(
+                    llm_call_id=llm_call.llm_call_id,
+                    llm_id=self.profile.llm_id,
+                    success=success,
+                    output_items=output,
+                    output_text=content,
+                    response_id=raw.get("id"),
+                    response_model=raw.get("model"),
+                    output_tokens=(raw.get("usage") or {}).get("completion_tokens", 0),
+                    inference_time_sec=elapsed,
+                    metadata=metadata,
+                    error_code=code,
+                    error_message=None if success else f"request ended with {reason}",
+                )
             )
         except Exception as exc:
             # Provider exception bodies can echo Authorization headers. Persist only type.
             code = "timeout" if "timeout" in type(exc).__name__.lower() else "llm_execution_failed"
-            return LLMResult(
-                llm_call_id=llm_call.llm_call_id,
-                llm_id=self.profile.llm_id,
-                success=False,
-                inference_time_sec=perf_counter() - start,
-                error_code=code,
-                error_message=type(exc).__name__,
-                metadata=metadata,
+            return self._finish(
+                LLMResult(
+                    llm_call_id=llm_call.llm_call_id,
+                    llm_id=self.profile.llm_id,
+                    success=False,
+                    inference_time_sec=perf_counter() - start,
+                    error_code=code,
+                    error_message=type(exc).__name__,
+                    metadata=metadata,
+                )
             )
+
+    def _finish(self, result):
+        return replace(
+            result,
+            metadata=public_llm_value(
+                {
+                    **result.metadata,
+                    "client_request_time_sec": result.inference_time_sec,
+                    "network_inclusive_request_time_sec": result.inference_time_sec,
+                },
+                self.profile,
+            ),
+        )
 
 
 def create_openai_chat_executor(profile: LLMInstanceProfile) -> OpenAIChatExecutor:

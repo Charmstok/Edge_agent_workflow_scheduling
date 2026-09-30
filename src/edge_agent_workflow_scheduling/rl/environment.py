@@ -109,9 +109,11 @@ class SchedulingEnv(gym.Env[np.ndarray, int]):
 
         if self._call_index >= len(self.calls):
             return np.zeros(len(self._target_ids), dtype=np.int8)
-        mask = self.resources.action_mask_details(
-            self.calls[self._call_index], constraints=self.constraints
-        )
+        return self.action_mask_for(self.calls[self._call_index])
+
+    def action_mask_for(self, call: SchedulableCall) -> np.ndarray:
+        """Encode the shared resource mask for an externally replayed call."""
+        mask = self.resources.action_mask_details(call, constraints=self.constraints)
         values = dict(zip(mask.target_ids, mask.values, strict=True))
         return np.asarray(
             [int(values.get(target_id, False)) for target_id in self._target_ids], dtype=np.int8
@@ -194,7 +196,10 @@ class SchedulingEnv(gym.Env[np.ndarray, int]):
     def _observation(self) -> np.ndarray:
         if self._call_index >= len(self.calls):
             return np.zeros(self.observation_space.shape, dtype=np.float32)
-        call = self.calls[self._call_index]
+        return self.observation_for(self.calls[self._call_index], self._call_index)
+
+    def observation_for(self, call: SchedulableCall, call_index: int) -> np.ndarray:
+        """Use the training encoder with the current replay resource states."""
         call_features = np.asarray(
             [
                 float(isinstance(call, ToolCall)),
@@ -220,11 +225,11 @@ class SchedulingEnv(gym.Env[np.ndarray, int]):
                     / self.config.max_latency_sec,
                     1.0,
                 ),
-                min(self._call_index / self.config.max_calls, 1.0),
+                min(call_index / self.config.max_calls, 1.0),
             ],
             dtype=np.float32,
         )
-        mask = self.action_masks()
+        mask = self.action_mask_for(call)
         rows: list[float] = []
         for index, target_id in enumerate(self._target_ids):
             row = [float(mask[index]), 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]

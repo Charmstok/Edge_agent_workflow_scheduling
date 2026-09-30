@@ -1,0 +1,12 @@
+{
+  "version": "local-tool-deployment-v1",
+  "tool_profile_catalog": "configs/tool_profiles.toml",
+  "consistency_samples": "configs/tool_deployment_samples_v1.json",
+  "required_tools": ["image_preprocess", "ocr", "pdf_parse", "pdf_render"],
+  "minimum_replicas_per_tool": 2,
+  "timeout_sec": 30.0,
+  "rl_smoke_seed": 57,
+  "rl_smoke_episodes": 100,
+  "fault_probes": true,
+  "deployment_kind": "same_host_logical_replica"
+}

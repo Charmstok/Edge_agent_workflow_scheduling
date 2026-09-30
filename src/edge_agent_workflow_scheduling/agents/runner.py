@@ -8,7 +8,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from math import isfinite
 from threading import Lock, Semaphore
-from time import monotonic
+from time import monotonic, perf_counter
 from typing import Any, Literal, TypeAlias
 from uuid import uuid4
 
@@ -403,7 +403,9 @@ class AgentRunner:
         context: _RunContext,
     ) -> CallExecutionRecord:
         semaphore = context.tool_semaphores[decision.selected_target]
+        queued_at = perf_counter()
         with semaphore:
+            semaphore_wait = perf_counter() - queued_at
             with context.resource_lock:
                 tool_call.transition_to(CallStatus.RUNNING)
                 running_state = self._change_tool_load(
@@ -419,6 +421,10 @@ class AgentRunner:
                     running_state,
                 )
             result = _execute_tool(executor, tool_call, _remaining(context))
+            result = replace(
+                result,
+                queue_wait_time_sec=result.queue_wait_time_sec + semaphore_wait,
+            )
             with context.resource_lock:
                 tool_call.transition_to(
                     CallStatus.SUCCEEDED if result.success else CallStatus.FAILED

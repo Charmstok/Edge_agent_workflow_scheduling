@@ -142,7 +142,7 @@ def run_llm_sampling(
         "input_budget": "fixed finite prompts times max_requests; provider input tokens retained",
         "energy_joules": None,
         "cost": None,
-        "quality_status": "unscored; milestone 4.5",
+        "quality_status": "unscored; quality scoring pending",
         "function_calling_verified": False,
     }
     write_json(output / "manifest.json", _redact(manifest, secrets))
@@ -155,8 +155,6 @@ def run_llm_sampling(
             reason = None
             if not deployment.get("enabled", True):
                 reason = "deployment_disabled"
-            elif deployment.get("model_env") and not os.getenv(deployment["model_env"]):
-                reason = "model_environment_missing"
             elif deployment.get("requires_api_key", True) and (
                 not profile.secret_env_vars
                 or any(not os.getenv(n) for n in profile.secret_env_vars)

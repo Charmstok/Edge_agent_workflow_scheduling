@@ -53,7 +53,7 @@
       {
         "type": "function",
         "name": "ocr",
-        "description": "Extract text from a local invoice image. Planned Milestone 4.2 contract.",
+        "description": "Extract text from a local invoice image. Document Tool interface contract.",
         "parameters": {
           "type": "object",
           "properties": {
@@ -71,7 +71,7 @@
       {
         "type": "function",
         "name": "pdf_parse",
-        "description": "Extract all page text from a local PDF. Planned Milestone 4.2 contract.",
+        "description": "Extract all page text from a local PDF. Document Tool interface contract.",
         "parameters": {
           "type": "object",
           "properties": {
