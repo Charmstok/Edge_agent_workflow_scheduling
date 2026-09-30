@@ -1,4 +1,4 @@
-"""Run the Milestone 4.8 workload in scripted, replay, or live mode.
+"""Run the document Agent workload in scripted, replay, or live mode.
 
 The scripted path is an offline regression fixture.  It intentionally uses a
 deterministic backend and profile executors, so its scores are not live LLM
@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import statistics
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
@@ -30,10 +29,11 @@ from edge_agent_workflow_scheduling.executors import (
     BackendLLMExecutor,
     ExecutorFactoryRegistry,
     ExecutorPool,
-    LocalToolExecutor,
     ProfileToolExecutor,
     create_openai_chat_executor,
 )
+from edge_agent_workflow_scheduling.executors.activation import llm_activation_error
+from edge_agent_workflow_scheduling.executors.local_deployment import LocalToolDeployment
 from edge_agent_workflow_scheduling.profiler import (
     TraceBundleStore,
     build_experiment_manifest,
@@ -45,6 +45,10 @@ from edge_agent_workflow_scheduling.profiler import (
     score_task_output,
     score_trace_bundle,
     write_evaluation_artifacts,
+)
+from edge_agent_workflow_scheduling.profiler.local_deployment import (
+    load_deployment_samples,
+    self_check_deployment,
 )
 from edge_agent_workflow_scheduling.resources import (
     LLMInstanceProfile,
@@ -66,10 +70,9 @@ from edge_agent_workflow_scheduling.tools import (
     ToolExecution,
     ToolRegistry,
 )
-from edge_agent_workflow_scheduling.workers import LocalWorker
 
 DEFAULT_WORKLOAD = Path("configs/document_agent_workload_v1.json")
-DEFAULT_OUTPUT = Path("data/milestone_4_8")
+DEFAULT_OUTPUT = Path("data/document_agent_workload")
 DEFAULT_LLM_CONFIG = Path("configs/llm_profiles.toml")
 DEFAULT_REPLAY_POLICIES = ("round_robin", "least_queue")
 
@@ -199,9 +202,7 @@ def run_replay(
     if not trace_paths:
         raise ValueError("replay requires at least one trace")
     replay_dir = output_dir / "replay"
-    replay_workload = (
-        WorkloadConfig.from_json(workload_path) if workload_path is not None else None
-    )
+    replay_workload = WorkloadConfig.from_json(workload_path) if workload_path is not None else None
     entries: list[dict[str, Any]] = []
     for trace_path in sorted(trace_paths):
         trace = load_trace_bundle(trace_path)
@@ -213,7 +214,7 @@ def run_replay(
             profile_seed=profile_seed,
             profile_jitter_ratio=profile_jitter_ratio,
             profile_failure_rate=profile_failure_rate,
-            experiment_id=f"milestone-4-8-{trace.run.run_id}",
+            experiment_id=f"document-agent-replay-{trace.run.run_id}",
         )
         run_records = []
         for run in result.runs:
@@ -296,79 +297,107 @@ def run_live(
         _write_json(output_dir / "summary.json", summary)
         return summary
 
-    missing_keys = [name for name in profile.secret_env_vars if not os.getenv(name)]
-    if missing_keys:
+    activation_error = llm_activation_error(profile)
+    if activation_error:
         return _live_not_validated(
             output_dir,
             {
                 "llm_id": profile.llm_id,
                 "model": profile.model,
                 "repeat_count": repeats,
-                "reason": f"missing credentials: {', '.join(missing_keys)}",
+                "reason": activation_error[1],
+                "error_code": activation_error[0],
             },
         )
 
     workload = WorkloadConfig.from_json(workload_path)
     plan = workload.generate(scenario, split=split, artifact_root=workload_path.parent)
-    verification = _verify_live_function_calling(
-        profile,
-        workload,
-        artifact_root=workload_path.parent,
-        output_dir=live_dir / "verification",
-    )
-    if verification["status"] != "passed":
-        return _live_not_validated(
-            output_dir,
-            {
-                "llm_id": profile.llm_id,
-                "model": profile.model,
-                "scenario": scenario,
-                "split": split,
-                "repeat_count": repeats,
-                "sampling_parameters": profile.deployment_config.get("model_parameters", {}),
-                "reason": verification["reason"],
-                "verification": verification,
+    repository = Path(__file__).resolve().parents[1]
+    with LocalToolDeployment.from_catalog(
+        repository / "configs/tool_profiles.toml",
+        input_root=workload_path.parent,
+        output_dir=live_dir / "tool_deployment",
+        timeout_sec=min(workload.agent.timeout_sec, 120.0),
+        manage_load=False,  # AgentRunner owns queue/running counters.
+    ) as deployment:
+        samples_for_checks = load_deployment_samples(
+            repository / "configs/tool_deployment_samples_v1.json"
+        )
+        checks, _ = self_check_deployment(deployment, samples_for_checks)
+        _write_json(live_dir / "tool_deployment/startup.json", deployment.startup)
+        _write_json(live_dir / "tool_deployment/self_check.json", checks)
+        if not checks["passed"]:
+            return _live_not_validated(
+                output_dir,
+                {
+                    "llm_id": profile.llm_id,
+                    "reason": (
+                        "local Tool replica self-check failed; see tool_deployment/self_check.json"
+                    ),
+                    "tool_self_check": checks,
+                },
+            )
+        verification = _verify_live_function_calling(
+            profile,
+            workload,
+            artifact_root=workload_path.parent,
+            output_dir=live_dir / "verification",
+            deployment=deployment,
+        )
+        if verification["status"] != "passed":
+            return _live_not_validated(
+                output_dir,
+                {
+                    "llm_id": profile.llm_id,
+                    "model": profile.model,
+                    "scenario": scenario,
+                    "split": split,
+                    "repeat_count": repeats,
+                    "sampling_parameters": profile.deployment_config.get("model_parameters", {}),
+                    "reason": verification["reason"],
+                    "verification": verification,
+                },
+            )
+
+        live_profile = replace(
+            profile,
+            capabilities=sorted(set(profile.capabilities) | {"function_calling"}),
+            deployment_config={
+                **profile.deployment_config,
+                "model_parameters": {
+                    **profile.deployment_config.get("model_parameters", {}),
+                    "tool_choice": "auto",
+                },
             },
         )
-
-    live_profile = replace(
-        profile,
-        capabilities=sorted(set(profile.capabilities) | {"function_calling"}),
-        deployment_config={
-            **profile.deployment_config,
-            "model_parameters": {
-                **profile.deployment_config.get("model_parameters", {}),
-                "tool_choice": "auto",
-            },
-        },
-    )
-    samples = {sample.task_id: sample for sample in workload.tasks}
-    records: list[dict[str, Any]] = []
-    for request in plan["requests"]:
-        sample = samples[request["task_id"]]
-        for repeat_index in range(1, repeats + 1):
-            record = _run_live_request(
-                workload,
-                live_profile,
-                sample=sample,
-                request=request,
-                repeat_index=repeat_index,
-                artifact_root=workload_path.parent,
-                output_dir=live_dir,
-            )
-            records.append(record)
-    summary = _live_summary(
-        profile=live_profile,
-        scenario=scenario,
-        split=split,
-        repeats=repeats,
-        verification=verification,
-        records=records,
-        plan=plan,
-    )
-    _write_json(live_dir / "summary.json", summary)
-    _write_json(output_dir / "summary.json", summary)
-    return summary
+        samples = {sample.task_id: sample for sample in workload.tasks}
+        records: list[dict[str, Any]] = []
+        for request in plan["requests"]:
+            sample = samples[request["task_id"]]
+            for repeat_index in range(1, repeats + 1):
+                record = _run_live_request(
+                    workload,
+                    live_profile,
+                    sample=sample,
+                    request=request,
+                    repeat_index=repeat_index,
+                    artifact_root=workload_path.parent,
+                    output_dir=live_dir,
+                    deployment=deployment,
+                )
+                records.append(record)
+        summary = _live_summary(
+            profile=live_profile,
+            scenario=scenario,
+            split=split,
+            repeats=repeats,
+            verification=verification,
+            records=records,
+            plan=plan,
+        )
+        _write_json(live_dir / "summary.json", summary)
+        _write_json(output_dir / "summary.json", summary)
+        return summary
 
 
 def _live_not_validated(output_dir: Path, fields: dict[str, Any]) -> dict[str, Any]:
@@ -384,6 +413,7 @@ def _verify_live_function_calling(
     *,
     artifact_root: Path,
     output_dir: Path,
+    deployment: LocalToolDeployment,
 ) -> dict[str, Any]:
     """Run a real tool-needed and no-tool-needed probe against the configured endpoint."""
 
@@ -391,9 +421,7 @@ def _verify_live_function_calling(
     input_dir = probe_dir / "inputs"
     tool_output_dir = probe_dir / "tool_outputs"
     input_dir.mkdir(parents=True, exist_ok=True)
-    source = next(
-        (artifact_root / reference for reference in _image_artifacts(workload)), None
-    )
+    source = next((artifact_root / reference for reference in _image_artifacts(workload)), None)
     if source is None or not source.is_file():
         return {"status": "not_validated", "reason": "no image fixture available for live probe"}
     registry = _live_tool_registry(artifact_root, tool_output_dir)
@@ -408,10 +436,10 @@ def _verify_live_function_calling(
             },
         },
     )
-    resources = _live_resources(verified_profile, registry)
-    factories = _live_factories(registry)
+    resources = _live_resources(verified_profile, deployment)
+    factories = _live_factories(deployment)
     runner = AgentRunner(
-        agent_id="milestone-4-8-live-verifier",
+        agent_id="document-agent-live-verifier",
         system_instruction=(
             "Use image_preprocess when the user asks to transform an image. "
             "After the Tool result, answer briefly. For arithmetic questions, do not use a Tool."
@@ -426,13 +454,13 @@ def _verify_live_function_calling(
         model_name=verified_profile.model,
     )
     manifest = build_experiment_manifest(
-        experiment_id="milestone-4-8-live-function-calling-verification",
-        dataset_id="milestone-4-8-live-verification-v1",
+        experiment_id="document-agent-function-calling-verification",
+        dataset_id="document-agent-function-calling-v1",
         sample_ids=["tool-needed", "no-tool-needed"],
         runner=runner,
-        system_prompt_version="milestone-4-8-live-verification-v1",
+        system_prompt_version="document-agent-function-calling-v1",
         user_template="{task}",
-        user_template_version="milestone-4-8-live-verification-v1",
+        user_template_version="document-agent-function-calling-v1",
         llm_profile_version=verified_profile.metadata.get("profile_version", "deployment"),
         tool_profile_version="real-local-tools",
         code_version="working-tree",
@@ -493,51 +521,31 @@ def _live_tool_registry(input_dir: Path, output_dir: Path) -> ToolRegistry:
     registry = ToolRegistry()
     registry.register(
         ImagePreprocessTool(
-            ImagePreprocessConfig(
-                local_root=input_dir, output_dir=output_dir / "image_preprocess"
-            )
+            ImagePreprocessConfig(local_root=input_dir, output_dir=output_dir / "image_preprocess")
         )
     )
     registry.register(OCRTool(OCRConfig(local_root=input_dir, output_dir=output_dir / "ocr")))
     registry.register(
-        PDFParseTool(
-            DocumentToolConfig(local_root=input_dir, output_dir=output_dir / "pdf_parse")
-        )
+        PDFParseTool(DocumentToolConfig(local_root=input_dir, output_dir=output_dir / "pdf_parse"))
     )
     registry.register(
-        PDFRenderTool(
-            PDFRenderConfig(local_root=input_dir, output_dir=output_dir / "pdf_render")
-        )
+        PDFRenderTool(PDFRenderConfig(local_root=input_dir, output_dir=output_dir / "pdf_render"))
     )
     return registry
 
 
-def _live_resources(profile: LLMInstanceProfile, registry: ToolRegistry) -> ResourceRegistry:
-    resources = ResourceRegistry()
-    resources.register_llm(profile)
-    for tool_name in registry.supported_tools():
-        resources.register_tool_replica(
-            ToolReplicaProfile(
-                replica_id=f"live-{tool_name}",
-                tool_name=tool_name,
-                node_id="local-coordinator",
-                platform="linux",
-                implementation_version="live-local-v1",
-                executor_type="local",
-                max_concurrency=1,
-            ),
-            ToolReplicaState(replica_id=f"live-{tool_name}"),
-        )
+def _live_resources(
+    profile: LLMInstanceProfile, deployment: LocalToolDeployment
+) -> ResourceRegistry:
+    resources = deployment.resources
+    resources.register_llm(profile, replace=True)
     return resources
 
 
-def _live_factories(registry: ToolRegistry) -> ExecutorFactoryRegistry:
+def _live_factories(deployment: LocalToolDeployment) -> ExecutorFactoryRegistry:
     factories = ExecutorFactoryRegistry()
     factories.register_llm("openai_chat", create_openai_chat_executor)
-    factories.register_tool(
-        "local",
-        lambda profile: LocalToolExecutor(LocalWorker(profile=profile, tool_registry=registry)),
-    )
+    deployment.register_factories(factories)
     return factories
 
 
@@ -559,25 +567,26 @@ def _run_live_request(
     repeat_index: int,
     artifact_root: Path,
     output_dir: Path,
+    deployment: LocalToolDeployment,
 ) -> dict[str, Any]:
     run_id = f"{request['run_id']}-repeat-{repeat_index:04d}"
     run_dir = output_dir / "runs" / run_id
     registry = _live_tool_registry(artifact_root, run_dir / "tool_outputs")
-    resources = _live_resources(profile, registry)
+    resources = _live_resources(profile, deployment)
     runner = AgentRunner(
         agent_id=request["agent_id"],
         system_instruction=workload.agent.system_prompt,
         tool_registry=registry,
         resources=resources,
         scheduler=BaselineScheduler("least_queue"),
-        executor_pool=ExecutorPool(_live_factories(registry)),
+        executor_pool=ExecutorPool(_live_factories(deployment)),
         max_rounds=workload.agent.max_rounds,
         max_tool_calls=workload.agent.max_tool_calls,
         timeout_sec=workload.agent.timeout_sec,
         model_name=profile.model,
     )
     manifest = build_experiment_manifest(
-        experiment_id=f"milestone-4-8-live-{run_id}",
+        experiment_id=f"document-agent-live-{run_id}",
         dataset_id=workload.dataset_id,
         sample_ids=[sample.task_id],
         runner=runner,
@@ -662,9 +671,7 @@ def _live_summary(
         "verification": verification,
         "metrics": {
             "success_rate": (
-                sum(record["success"] for record in records) / len(records)
-                if records
-                else 0.0
+                sum(record["success"] for record in records) / len(records) if records else 0.0
             ),
             "end_to_end_latency_sec": _distribution(latencies),
             "tool_call_count": _distribution(tool_counts),
@@ -726,7 +733,7 @@ def _run_scripted_request(
         model_name="scripted-model",
     )
     manifest = build_experiment_manifest(
-        experiment_id=f"milestone-4-8-scripted-{request['run_id']}",
+        experiment_id=f"document-agent-scripted-{request['run_id']}",
         dataset_id=workload.dataset_id,
         sample_ids=[sample.task_id],
         runner=runner,
@@ -735,7 +742,7 @@ def _run_scripted_request(
         user_template_version=workload.agent.user_template_version,
         llm_profile_version="scripted-offline-v1",
         tool_profile_version="scripted-offline-v1",
-        code_version="milestone-4-8",
+        code_version="document-agent-workload-v1",
         mode="live",
         sampling_parameters=workload.agent.sampling_parameters,
         profile_seed=profile_seed,

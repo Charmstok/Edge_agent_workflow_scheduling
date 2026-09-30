@@ -1,5 +1,6 @@
 """Credential-free checks for Ark profile routing and secret handling."""
 
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -38,8 +39,10 @@ def test_cloud_profiles_load_without_credentials():
 def test_missing_key_fails_before_client_creation(monkeypatch, llm_id):
     constructor = Mock()
     monkeypatch.setattr("openai.OpenAI", constructor)
+    profile = load_llm_profile(CATALOG, llm_id)
+    profile = replace(profile, deployment_config={**profile.deployment_config, "enabled": True})
     with pytest.raises(RuntimeError, match="ARK_API_KEY"):
-        create_openai_client(load_llm_profile(CATALOG, llm_id))
+        create_openai_client(profile)
     constructor.assert_not_called()
 
 
@@ -48,7 +51,8 @@ def test_chat_request_uses_glm_and_ark_credentials(monkeypatch, llm_id):
     monkeypatch.setenv("ARK_API_KEY", "test-only-key")
     response = Mock()
     response.model_dump.return_value = {
-        "id": "fake-response", "model": "glm-5-3-flash-260828",
+        "id": "fake-response",
+        "model": "glm-5-3-flash-260828",
         "choices": [{"finish_reason": "stop", "message": {"content": "42"}}],
         "usage": {"prompt_tokens": 5, "completion_tokens": 1, "total_tokens": 6},
     }
@@ -57,15 +61,22 @@ def test_chat_request_uses_glm_and_ark_credentials(monkeypatch, llm_id):
     constructor = Mock(return_value=client)
     monkeypatch.setattr("openai.OpenAI", constructor)
     profile = load_llm_profile(CATALOG, llm_id)
+    profile = replace(profile, deployment_config={**profile.deployment_config, "enabled": True})
     executor = create_openai_chat_executor(profile)
-    result = executor.execute(LLMCall(
-        llm_call_id="test-call", run_id="test-run", agent_id="test-agent",
-        input_items=[{"role": "user", "content": "17 plus 25?"}],
-    ), timeout_sec=10)
+    result = executor.execute(
+        LLMCall(
+            llm_call_id="test-call",
+            run_id="test-run",
+            agent_id="test-agent",
+            input_items=[{"role": "user", "content": "17 plus 25?"}],
+        ),
+        timeout_sec=10,
+    )
     assert result.success
     assert result.output_text == "42"
     assert constructor.call_args.kwargs == {
-        "api_key": "test-only-key", "max_retries": 0,
+        "api_key": "test-only-key",
+        "max_retries": 0,
         "base_url": "https://ark.cn-beijing.volces.com/api/v3",
     }
     assert create.call_args.kwargs["model"] == "glm-5-3-flash-260828"

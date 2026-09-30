@@ -20,7 +20,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("data/milestone_3_7"),
+        default=Path("data/pareto_experiments"),
     )
     parser.add_argument(
         "--weights",

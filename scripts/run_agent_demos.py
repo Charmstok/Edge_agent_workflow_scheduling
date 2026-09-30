@@ -1,4 +1,4 @@
-"""Run Milestone 2.8 live, multi-Tool, online, and replay demos."""
+"""Run live, multi-Tool, online, and replay Agent demos."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ from edge_agent_workflow_scheduling.tools import (
 )
 from edge_agent_workflow_scheduling.workers import LocalWorker
 
-DEFAULT_OUTPUT_DIR = Path("data/milestone_2_8")
+DEFAULT_OUTPUT_DIR = Path("data/agent_demos")
 DEFAULT_LLM_CONFIG = Path("configs/llm_profiles.toml")
 DEFAULT_REPLAY_POLICIES = ("round_robin", "least_queue")
 PROFILE_SEED = 28
@@ -105,7 +105,7 @@ def run_offline_demo(output_dir: Path, *, multi_tool: bool = False) -> Path:
         timeout_sec=30.0,
     )
     manifest = _build_manifest(
-        experiment_id=f"milestone-2-8-{demo_name}",
+        experiment_id=f"agent-demo-v1-{demo_name}",
         sample_ids=[path.name for path in image_paths],
         runner=runner,
         sampling_parameters={},
@@ -173,7 +173,7 @@ def run_online_demo(
     )
     model_parameters = llm_profile.deployment_config.get("model_parameters", {})
     manifest = _build_manifest(
-        experiment_id="milestone-2-8-online",
+        experiment_id="agent-demo-v1-online",
         sample_ids=[image_path.name],
         runner=runner,
         sampling_parameters=(model_parameters if isinstance(model_parameters, dict) else {}),
@@ -403,7 +403,7 @@ def _build_manifest(
 ) -> ExperimentManifest:
     return build_experiment_manifest(
         experiment_id=experiment_id,
-        dataset_id="milestone-2-8-demo",
+        dataset_id="agent-demo-v1-demo",
         sample_ids=sample_ids,
         runner=runner,
         system_prompt_version="demo-v1",

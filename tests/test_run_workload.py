@@ -79,20 +79,26 @@ def test_replay_compares_policies_and_keeps_failed_calls(tmp_path: Path) -> None
 
     assert summary["policy_count"] == 2
     assert summary["trace_count"] == 9
-    generated = list(
-        (tmp_path / "replay").glob("*/workload-*/profile-*/experiment-*/*/trace.json")
-    )
+    generated = list((tmp_path / "replay").glob("*/workload-*/profile-*/experiment-*/*/trace.json"))
     assert generated
     failed_trace = json.loads(generated[0].read_text(encoding="utf-8"))
     assert any(not call["success"] for call in failed_trace["calls"])
     assert failed_trace["calls"][0]["call_id"].endswith("llm-0000")
-    replay_summary = json.loads(
-        generated[0].with_name("summary.json").read_text(encoding="utf-8")
-    )
+    replay_summary = json.loads(generated[0].with_name("summary.json").read_text(encoding="utf-8"))
     assert replay_summary["task_score"]["normalized_score"] == 0.0
 
 
-def test_live_without_verified_function_calling_is_not_validated(tmp_path: Path) -> None:
+def test_live_without_verified_function_calling_is_not_validated(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        _SCRIPT,
+        "_verify_live_function_calling",
+        lambda *args, **kwargs: {
+            "status": "not_validated",
+            "reason": "Function Calling probe failed",
+        },
+    )
     summary = run_live(
         WORKLOAD,
         config_path=LLM_CONFIG,

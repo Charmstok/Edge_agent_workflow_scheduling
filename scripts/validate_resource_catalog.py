@@ -30,7 +30,9 @@ def main() -> int:
     missing_local = set(raw["required_local_llm_ids"]) - llm_ids
     missing_cloud = set(raw["required_cloud_llm_ids"]) - llm_ids
     if missing_local or missing_cloud:
-        raise SystemExit(f"missing LLM profiles: local={sorted(missing_local)}, cloud={sorted(missing_cloud)}")
+        raise SystemExit(
+            f"missing LLM profiles: local={sorted(missing_local)}, cloud={sorted(missing_cloud)}"
+        )
 
     counts = Counter(profile.tool_name for profile in tools)
     required_tools = set(raw["required_tool_names"])
@@ -49,7 +51,10 @@ def main() -> int:
     if cloud["api_key_env"] != "ARK_API_KEY":
         raise SystemExit("cloud API key must use ARK_API_KEY")
     print(f"resource_catalog={raw['resource_catalog_id']}")
-    print(f"llm_profiles={len(llms)} local={sorted(raw['required_local_llm_ids'])} cloud={sorted(raw['required_cloud_llm_ids'])}")
+    print(
+        f"llm_profiles={len(llms)} local={sorted(raw['required_local_llm_ids'])} "
+        f"cloud={sorted(raw['required_cloud_llm_ids'])}"
+    )
     print(f"tool_replicas={len(tools)} per_tool={dict(sorted(counts.items()))}")
     print(f"cloud_base_url={cloud['base_url']} api_key_env={cloud['api_key_env']}")
     print("status=ok")

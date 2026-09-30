@@ -19,7 +19,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("data/milestone_3_6"),
+        default=Path("data/baseline_experiments"),
         help="Root directory for versioned experiment artifacts",
     )
     parser.add_argument(
